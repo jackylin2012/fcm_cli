@@ -77,6 +77,7 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
     valid_docs = doc_lens >= window_size + 1
     tokenized_doc_train = filter_list(tokenized_doc_train, valid_docs)
     X_train = X_train[valid_docs]
+    doc_lens = doc_lens[valid_docs]
     if expvars_train is not None:
         expvars_train = expvars_train[valid_docs]
     wordcounts_train = X_train.sum(axis=0)
