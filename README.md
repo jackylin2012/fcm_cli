@@ -16,4 +16,5 @@ pip install --editable .
 ## Quickstart
 
    * View help info `fcm --help`
-   * Training with 20 News Group dataset with default parameters `fcm train --dataset news_group`
+   * Training with 20 News Group dataset with default parameters and save the model, results, and visualization 
+   html in the folder "run0": ```fcm train news_group run0``` 
