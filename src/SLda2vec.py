@@ -403,11 +403,12 @@ class SLda2vec(nn.Module):
                                         doc_lengths=self.doc_lens, vocab=self.vocab, term_frequency=self.word_counts)
             pyLDAvis.save_html(vis_data, os.path.join(save_folder, "visualization.html"))
 
+    # TODO: add filtering such as pos and tf
     def get_concept_words(self, top_k=10, concept_metric='dot'):
         concept_embed = self.embedding_t.data.numpy()
-        word_embed = self.embedding_i.data.numpy()
+        word_embed = self.embedding_i.weight.data.numpy()
         if concept_metric == 'dot':
-            dist = -np.matmul(concept_embed, np.transpose(word_embed, (0, 1)))
+            dist = -np.matmul(concept_embed, np.transpose(word_embed, (1, 0)))
         else:
             dist = cdist(concept_embed, word_embed, metric=concept_metric)
         nearest_words = np.argsort(dist, axis=1)[:, :top_k]  # indices of words with min cosine distance

@@ -94,7 +94,6 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
 
     y_train = np.array([y_train[i] for i in range(len(valid_docs)) if valid_docs[i]])
     doc_windows_train = get_windows(encoded_doc_train, y_train, window_size=window_size)
-    assert X_train.shape[0] == doc_lens.shape[0]
     return X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, expvars_train
 
 
