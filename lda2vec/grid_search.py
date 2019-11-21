@@ -1,84 +1,157 @@
-def fit(fcm, windows, batch_size=1, lr=0.001, savefolder="run0",
-        X_test=None, y_test=None,
-        X_train=None, y_train=None,
-        weight_decay=0.01):
-    train_dataset = PermutedSubsampledCorpus(windows)
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size, shuffle=True,
-                                                   num_workers=4, pin_memory=True,
-                                                   drop_last=False)
+import copy
+import itertools
+import json
+import os
+import random
+import threading
+import time
+import traceback
+from queue import Queue
 
-    if fcm.gpu:
-        fcm.cuda()
+import gc
+import numpy
+import pandas
+import torch
 
-    train_loss_file = open(savefolder + "/train_loss.txt", "w")
+numpy.random.seed(0)
 
-    # SGD generalizes better: https://arxiv.org/abs/1705.08292
-    optimizer = optim.Adam(fcm.parameters(), lr=lr, weight_decay=weight_decay)
-    nwindows = len(windows)
 
-    for epoch in tqdm(range(fcm.nepochs), desc="Training epochs"):
-        total_sgns_loss = 0.0
-        total_dirichlet_loss = 0.0
-        total_pred_loss = 0.0
-        total_diversity_loss = 0.0
+torch.backends.cudnn.benchmark = True
+devices = [torch.device("cuda:{}".format(i)) for i in range(torch.cuda.device_count())]
 
-        fcm.train()
-        for batch in train_dataloader:
-            loss, sgns_loss, dirichlet_loss, pred_loss, div_loss = fcm.calculate_loss(batch)
+done_ids = set()
+queue = Queue()
+lock = threading.Lock()
 
-            optimizer.zero_grad()
-            loss.backward()
+def make_hash(o):
+    """
+    Makes a hash from a dictionary, list, tuple or set to any level, that contains
+    other hashable types (including any lists, tuples, sets, and dictionaries).
+    """
+    if isinstance(o, (set, tuple, list)):
+        return tuple([make_hash(e) for e in o])
+    elif not isinstance(o, dict):
+        return hash(o)
+    new_o = copy.deepcopy(o)
+    for k, v in new_o.items():
+        new_o[k] = make_hash(v)
+    return hash(tuple(frozenset(sorted(new_o.items()))))
 
-            # gradient clipping
-            for p in fcm.parameters():
-                if p.requires_grad:
-                    p.grad = p.grad.clamp(min=-GRAD_CLIP, max=GRAD_CLIP)
+def init_cuda():
+    for device in devices:
+        t = torch.tensor([1.]).to(device)
+        del t
+    torch.cuda.empty_cache()
+    gc.collect()
 
-            optimizer.step()
+def available_memory(device):
+    return torch.cuda.get_device_properties(device).total_memory - torch.cuda.memory_allocated(device)
 
-            nsamples = batch.size(0)
+def training_thread(start_gpu):
+    global results
+    while not queue.empty():
+        gpu = start_gpu
+        while available_memory(devices[gpu]) < max_mem:
+            time.sleep(wait_time)
+            gpu = (gpu + 1) % len(devices)
+        device = devices[gpu]
+        gpu_num = gpus[gpu]
+        params = queue.get_nowait()
+        params["id"] = abs(make_hash(params))
+        if params["id"] in done_ids:
+            print("Id {} already exists".format(params["id"]))
+            continue
+        model = dataset = None
+        print("Beginning training run on GPU {}... with id {}".format(gpu_num, params["id"]))
+        try:
+            os.makedirs(os.path.join(out_dir, "{}/checkpoints/".format(params["id"])), exist_ok=True)
+            model = model_cl(params, device)
+            dataset = dataset_cl(params, device)
+            start = time.perf_counter()
+            losses, frame_spec_l1_l2 = train_fn(model, dataset, params, device, os.path.join(out_dir, "{}/checkpoints/".format(params["id"])))
+            end = time.perf_counter()
+            run_time = end - start
+            best_epoch = numpy.argmin(losses)
+            best_loss = losses[best_epoch]
+            best_l1_l2 = frame_spec_l1_l2[best_epoch]
+        except Exception as e:
+            if debug:
+                print(traceback.format_exc())
+            print("WARNING: exception raised while training on GPU {} with params {}".format(gpu_num, params))
+            queue.put(params)
+        else:
+            params["best_loss"] = best_loss
+            params["best_epoch"] = best_epoch
+            params["run_time"] = run_time
+            params["frame_l1"], params["frame_l2"], params["spec_l1"], params["spec_l2"] = best_l1_l2
+            with lock:
+                results = results.append(params, ignore_index=True)
+                results = results.sort_values(by="best_loss")
+                results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
+            print("Training run complete, results:", params)
+        del model
+        del dataset
+        torch.cuda.empty_cache()
+        gc.collect()
+        queue.task_done()
 
-            total_sgns_loss += sgns_loss.data * nsamples
-            total_dirichlet_loss += dirichlet_loss.data * nsamples
-            total_pred_loss += pred_loss.data * nsamples
-            total_diversity_loss += div_loss.data * nsamples
 
-        auc = -1.
-        if X_test is not None and y_test is not None:
-            if fcm.expvars_test is None:
-                y_pred = fcm.predict_proba(torch.FloatTensor(X_test)).cpu().detach().numpy()
-            else:
-                y_pred = fcm.predict_proba(torch.FloatTensor(X_test),
-                                           fcm.expvars_test).cpu().detach().numpy()
-            auc = roc_auc_score(y_test, y_pred)
-        train_auc = -1.
-        if X_train is not None and y_train is not None:
-            if fcm.expvars_train is None:
-                y_pred = fcm.predict_proba(torch.FloatTensor(X_train)).cpu().detach().numpy()
-            else:
-                y_pred = fcm.predict_proba(torch.FloatTensor(X_train),
-                                           fcm.expvars_train).cpu().detach().numpy()
-            train_auc = roc_auc_score(y_train, y_pred)
+def get_done():
+    if results is None:
+        return done_ids
+    for i, row in results.iterrows():
+        done_ids.add(row['id'])
+    return done_ids
 
-        print("epoch " + str(epoch) + ":")
-        print("Train AUC: %.4f" % (train_auc))
-        print("Test AUC: %.4f" % (auc)),
-        print("Total loss: %.4f" % (
-                    (total_sgns_loss + total_dirichlet_loss + total_pred_loss + total_diversity_loss) / nwindows))
-        print("SGNS loss: %.4f" % (total_sgns_loss / nwindows))
-        print("Dirichlet loss: %.4f" % (total_dirichlet_loss / nwindows))
-        print("Prediction loss: %.4f" % (total_pred_loss / nwindows))
-        print("Diversity loss: %.4f" % (total_diversity_loss / nwindows))
-        train_loss_file.write("%.4f" % (
-                    (total_sgns_loss + total_dirichlet_loss + total_pred_loss + total_diversity_loss) / nwindows) + ",")
-        train_loss_file.write("%.4f" % (total_sgns_loss / nwindows) + ",")
-        train_loss_file.write("%.4f" % (total_dirichlet_loss / nwindows) + ",")
-        train_loss_file.write("%.4f" % (total_pred_loss / nwindows) + ",")
-        train_loss_file.write("%.4f" % (total_diversity_loss / nwindows) + "\n")
-        train_loss_file.flush()
 
-        if (epoch + 1) % 10 == 0:
-            torch.save(fcm.state_dict(), savefolder + "/" + str(epoch + 1) + ".slda2vec.pytorch")
+def grid_search(config_path):
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    global gpus, max_mem, out_dir, wait_time, debug, results, devices,\
+        partitions, done_ids
 
-    # TODO: save the best on valid?
-    torch.save(fcm.state_dict(), savefolder + "/slda2vec.pytorch")
+    mode = config["mode"]
+    if "gpus" in config.keys():
+        gpus = config["gpus"]
+        devices = [torch.device("cuda:{}".format(gpu)) for gpu in gpus]
+    if "partitions" in config.keys():
+        partitions = config["partitions"]
+    else:
+        partitions = gpus
+    max_mem = config["max_mem"]
+    max_threads = config["max_threads"]
+    out_dir = config["out_dir"]
+    shuffle = config["shuffle"]
+    debug = config["debug"]
+    params = config["params"]
+    params = {k: v if isinstance(v, list) else [v] for k, v in params.items()}
+    results = pandas.DataFrame(columns=["id", "best_loss", "best_epoch", "run_time"] + list(params.keys()))
+    if mode == "product":
+        combos = [dict(zip(params.keys(), values)) for values in itertools.product(*params.values())]
+    elif mode == "zip":
+        max_len = max(len(x) for x in params.values())
+        params = {k: v if len(v) > 1 else v * max_len for k, v in params.items()}
+        combos = [dict(zip(params.keys(), values)) for values in zip(*params.values())]
+    else:
+        raise ValueError("Invalid mode \"{}\"".format(mode))
+    if shuffle:
+        random.shuffle(combos)
+    print("Start grid search with %d combos" % len(combos))
+    os.makedirs(out_dir, exist_ok=True)
+    if os.path.isfile(os.path.join(out_dir, "results.csv")):
+        results = pandas.read_csv(os.path.join(out_dir, "results.csv"))
+    done_ids = get_done()
+    if "gs_start" in config:
+        combos = combos[config["gs_start"]:]
+    for combo in combos:
+        queue.put(combo)
+    init_cuda()
+    for i in range(max_threads):
+        time.sleep((i // len(devices)) * wait_time)
+        thread = threading.Thread(target=training_thread, args=(i % len(devices),))
+        thread.setDaemon(True)
+        thread.start()
+    queue.join()
+    results = results.sort_values(by="best_loss")
+    results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
+    print("Grid search complete!")

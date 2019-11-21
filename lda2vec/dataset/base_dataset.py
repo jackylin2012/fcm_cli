@@ -9,11 +9,13 @@ class BaseDataset(object):
     """
 
     # TODO: accept kwargs
-    def load_data(self, window_size):
+    def load_data(self, vocab_size, window_size):
         """Load the data with extracted features
 
         Parameters
         ----------
+        vocab_size : int
+            The maximum size of the vocabulary
         window_size : int
             The size of context window for training the word embedding
 
@@ -41,14 +43,56 @@ class BaseDataset(object):
                     "word_counts": ndarray, shape (vocab_size,)
                         The count of each word in the training documents. The ordering of these counts
                         should correspond with `vocab`.
-                    "doc_lens": ndarray, shape (n_train_docs,)
+                    "doc_lens" : ndarray, shape (n_train_docs,)
                         The length of each training document.
+                    "expvars_train" [OPTIONAL] : ndarray, shape (n_train_docs, n_features)
+                        Extra features for training documents
+                    "expvars_test" [OPTIONAL] : ndarray, shape (n_test_docs, n_features)
+                        Extra features for test documents
                 }
         """
         raise NotImplementedError
 
 
-def get_windows(encoded_docs, labels, window_size=4):
+def filter_list(original, include):
+    return [original[i] for i in range(include) if include[i]]
+
+
+def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expvars_train=None):
+    analyze = vectorizer.build_analyzer()
+    tokenized_doc_train = [analyze(d) for d in doc_train]
+    # only keep documents with length longer than the window size
+    doc_lens = np.array([len(d) for d in tokenized_doc_train])
+    valid_docs = doc_lens >= window_size + 1
+    doc_train = filter_list(doc_train, valid_docs)
+    tokenized_doc_train = filter_list(tokenized_doc_train, valid_docs)
+    X_train = vectorizer.fit_transform(doc_train).toarray()
+    X_test = vectorizer.transform(doc_test).toarray()
+    # only keep words included in the vectorizer's vocabulary
+    encoded_doc_train = [[vectorizer.vocabulary_.get(word) for word in doc] for doc in tokenized_doc_train]
+    # calculate document lengths again after excluding out of vocabulary word
+    doc_lens = np.array([len(doc) for doc in encoded_doc_train])
+    valid_docs = doc_lens >= window_size + 1
+    X_train = X_train[valid_docs]
+    if expvars_train is not None:
+        expvars_train = expvars_train[valid_docs]
+    wordcounts_train = X_train.sum(axis=0)
+    # only keep words with count > 0 in the filtered training set
+    valid_words = wordcounts_train > 0
+    vocab = vectorizer.get_feature_names()
+    valid_vocab = [vocab[i] for i in range(valid_words) if valid_words[i]]
+    valid_vocab_dict = {w: i for i, w in enumerate(valid_vocab)}
+    # recalculate the encoded documents with the new vocab
+    encoded_doc_train = [[valid_vocab_dict[word] for word in doc] for doc in tokenized_doc_train]
+    X_train = X_train[:, valid_vocab]
+    X_test = X_test[:, valid_vocab]
+
+    y_train = np.array([y_train[i] for i in range(len(valid_docs)) if valid_docs[i]])
+    doc_windows_train = get_windows(encoded_doc_train, y_train, window_size=window_size)
+    return X_train, y_train, X_test, wordcounts_train, doc_lens, valid_vocab, doc_windows_train, expvars_train
+
+
+def get_windows(encoded_docs, labels, window_size):
     """
     Generate context windows from the encoded document
 
@@ -92,7 +136,9 @@ def get_windows(encoded_docs, labels, window_size=4):
             else:
                 left_context = concatenated_doc[max(0, j - half_window):j]
                 right_context = concatenated_doc[j + 1:min(j + half_window + 1, doc_len)]
-
+            w = [i, target] + left_context + right_context + [label]
+            if len(w) != window_size + 3:
+                raise ValueError("j=%d, left_context=%s, right_context=%s, w=%s" % (j, left_context, right_context, w))
             windows.append([i, target] + left_context + right_context + [label])
 
     windows_array = np.zeros((len(windows), window_size + 3), dtype=np.int)

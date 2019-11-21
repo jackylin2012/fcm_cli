@@ -1,13 +1,7 @@
-#!/usr/bin/env python
-import itertools
-import json
 import os
-import random
-import sys
-import threading
 
 import numpy as np
-import pandas
+import pyLDAvis
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
@@ -15,23 +9,19 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
 from scipy.stats import ortho_group
+from sklearn.metrics import roc_auc_score
 from torch.nn import Parameter
 from tqdm import tqdm
 
-from constants import *
 from alias_multinomial import AliasMultinomial
-from sklearn.metrics import roc_auc_score
-from queue import Queue
-import pyLDAvis
-
-
+from constants import *
 
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 
 class SLda2vec(nn.Module):
 
-    def __init__(self, embedding_size=300, nepochs=200, nnegs=15, word_counts=None, ntopics=25,
+    def __init__(self, embed_size=300, nepochs=200, nnegs=15, word_counts=None, ntopics=25,
                  lam=100.0, rho=100.0, eta=1.0, doc_lens=None, doc_topic_weights=None, word_vectors=None,
                  expvars_train=None, expvars_test=None, theta=None, gpu=False, inductive=True,
                  X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None, vocab=None):
@@ -39,7 +29,7 @@ class SLda2vec(nn.Module):
 
         Parameters
         ----------
-        embedding_size
+        embed_size
         nepochs
         nnegs
         word_counts
@@ -64,7 +54,7 @@ class SLda2vec(nn.Module):
         super(SLda2vec, self).__init__()
         ndocs = X_train.shape[0]
         vocab_size = X_train.shape[1]
-        self.embedding_size = embedding_size
+        self.embed_size = embed_size
         self.nepochs = nepochs
         self.nnegs = nnegs
         self.ntopics = ntopics
@@ -105,13 +95,13 @@ class SLda2vec(nn.Module):
 
         # word embedding
         self.embedding_i = nn.Embedding(num_embeddings=vocab_size,
-                                        embedding_dim=embedding_size,
+                                        embedding_dim=embed_size,
                                         sparse=False)
         if word_vectors is not None:
             self.embedding_i.weight.data = torch.FloatTensor(word_vectors)
 
         # regular embedding for topics (never indexed so not sparse)
-        self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embedding_size)[0:ntopics]))
+        self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embed_size)[0:ntopics]))
 
         # embedding for per-document topic weights
         if self.inductive:
@@ -286,6 +276,7 @@ class SLda2vec(nn.Module):
 
         return negative_sampling_loss, dirichlet_loss, pred_loss, div_loss
 
+    # TODO: move savefolder to init
     def fit(self, batch_size=1, lr=0.001, savefolder="run0",
             weight_decay=0.01):
         train_dataloader = torch.utils.data.DataLoader(self.train_dataset, batch_size, shuffle=True,
@@ -361,7 +352,7 @@ class SLda2vec(nn.Module):
                 torch.save(self.state_dict(), os.path.join(savefolder, str(epoch+1) + ".slda2vec.pytorch"))
 
         # TODO: save the best on valid?
-        torch.save(self.state_dict(), savefolder + "/slda2vec.pytorch")
+        torch.save(self.state_dict(), os.path.join(savefolder, "slda2vec.pytorch"))
 
     def calculate_loss(self, batch, per_doc_loss=None):
         batch = autograd.Variable(torch.LongTensor(batch))
@@ -379,8 +370,8 @@ class SLda2vec(nn.Module):
     # TODO: only applicable to inductive, figure out what to do for non-inductive
     def predict_proba(self, count_matrix, expvars=None):
         assert self.inductive
-        batch_size = count_matrix.size(0)
-        with torch.no_grad:
+        with torch.no_grad():
+            batch_size = count_matrix.size(0)
             doc_topic_weights = self.doc_topic_weights(count_matrix)
             doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
 
@@ -395,64 +386,15 @@ class SLda2vec(nn.Module):
             pred_proba = pred_weight.sigmoid()
         return pred_proba
 
-    def grid_search(self, conf_path):
-        with open(conf_path, "r") as f:
-            config = json.load(f)
-        mode = config["mode"]
-        if "gpus" in config.keys():
-            gpus = config["gpus"]
-            devices = [torch.device("cuda:{}".format(gpu)) for gpu in gpus]
-        if "partitions" in config.keys():
-            partitions = config["partitions"]
-        else:
-            partitions = gpus
-        max_mem = config["max_mem"]
-        max_threads = config["max_threads"]
-        out_dir = config["out_dir"]
-        wait_time = config["wait_time"]
-        shuffle = config["shuffle"]
-        debug = config["debug"]
-        params = config["params"]
-        params = {k: v if isinstance(v, list) else [v] for k, v in params.items()}
-        results = pandas.DataFrame(columns=["id", "best_loss", "best_epoch", "run_time"] + list(params.keys()))
-        if mode == "product":
-            combos = [dict(zip(params.keys(), values)) for values in itertools.product(*params.values())]
-        elif mode == "zip":
-            max_len = max(len(x) for x in params.values())
-            params = {k: v if len(v) > 1 else v * max_len for k, v in params.items()}
-            combos = [dict(zip(params.keys(), values)) for values in zip(*params.values())]
-        else:
-            raise ValueError("Invalid mode \"{}\"".format(mode))
-        if shuffle:
-            random.shuffle(combos)
-        print("Start grid search with %d combos" % len(combos))
-        os.makedirs(out_dir, exist_ok=True)
-        done_ids = set()
-        if os.path.isfile(os.path.join(out_dir, "results.csv")):
-            results = pandas.read_csv(os.path.join(out_dir, "results.csv"))
-            for i, row in results.iterrows():
-                done_ids.add(row['id'])
-        queue = Queue()
-        lock = threading.Lock()
-        for combo in combos:
-            queue.put(combo)
-        for i in range(len(devices)):
-            thread = threading.Thread(target=self.fit, args=(i, lock))
-            thread.setDaemon(True)
-            thread.start()
-        queue.join()
-        results = results.sort_values(by="best_loss")
-        results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
-        print("Grid search complete!")
-
     def visualize(self, save_folder):
-        with torch.no_grad:
+        with torch.no_grad():
             doc_topic_weights = self.doc_topic_weights(self.X_train)
             # [n_docs, n_topics]
             doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
             # [n_topics, vocab_size]
             topic_word_dists = torch.matmul(doc_topic_probs.transpose(0, 1), self.X_train)
-            vis_data = pyLDAvis.prepare(topic_term_dists=topic_word_dists, doc_topic_dists=doc_topic_probs,
+            vis_data = pyLDAvis.prepare(topic_term_dists=topic_word_dists.data.numpy(),
+                                        doc_topic_dists=doc_topic_probs.data.numpy(),
                                         doc_lengths=self.doc_lens, vocab=self.vocab, term_frequency=self.word_counts)
             pyLDAvis.save_html(vis_data, os.path.join(save_folder, "visualization.html"))
 
