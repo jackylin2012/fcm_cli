@@ -32,9 +32,9 @@ def get_dataset(dataset):
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)
-@click.option('--dataset', help="Name of the dataset to use")
+@click.argument('dataset')
+@click.argument('out-dir')
 @click.option('--ntopics', default=5, help="No. of topics")
-@click.option('--out-dir', default='run0', help="Output model folder")
 @click.option('--embed-size', default=50, help="Word/topic embedding size")
 @click.option('--vocab-size', default=10000, help="Maximum vocabulary size")
 @click.option('--pretrained-embed', type=str, default=None, help="Pretrained word embedding path")
@@ -58,14 +58,19 @@ def get_dataset(dataset):
 @click.pass_context
 def train(ctx, dataset, ntopics, out_dir, embed_size, vocab_size, pretrained_embed, nnegs, lam, rho, eta,
           window_size, lr, batch, gpu, dropout, nepochs, top_k, concept_metric):
-    """Train FCM"""
+    """Train FCM
+
+    DATASET is the name of the dataset to be used. It must be one of the datasets defined in `dataset/`
+        which subclass BaseDataset
+    OUT-DIR is the path to the output directory where the model, results, and visualization will be saved
+    """
     dataset_class = get_dataset(dataset)
     ds = dataset_class()
     data_attr = ds.load_data(vocab_size=vocab_size, window_size=window_size)
-    l2v = SLda2vec(embed_size=embed_size, nepochs=nepochs, nnegs=nnegs,
+    l2v = SLda2vec(out_dir, embed_size=embed_size, nepochs=nepochs, nnegs=nnegs,
                    ntopics=ntopics, lam=lam, rho=rho, eta=eta, gpu=gpu, **data_attr)
     l2v.fit(batch_size=batch, lr=lr)
-    l2v.visualize("run0")
+    l2v.visualize()
     l2v.get_concept_words(top_k, concept_metric)
 
 

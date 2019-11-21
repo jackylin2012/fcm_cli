@@ -1,16 +1,14 @@
 import os
-import warnings
 
 import numpy as np
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    import pyLDAvis
+import pyLDAvis
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
+from scipy.spatial.distance import cdist
 from scipy.stats import ortho_group
 from sklearn.metrics import roc_auc_score
 from torch.nn import Parameter
@@ -18,15 +16,13 @@ from tqdm import tqdm
 
 from alias_multinomial import AliasMultinomial
 from constants import *
-from scipy.spatial.distance import cdist, pdist
-
 
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 
 class SLda2vec(nn.Module):
 
-    def __init__(self, embed_size=300, nepochs=200, nnegs=15, word_counts=None, ntopics=25,
+    def __init__(self, out_dir, embed_size=300, nepochs=200, nnegs=15, word_counts=None, ntopics=25,
                  lam=100.0, rho=100.0, eta=1.0, doc_lens=None, doc_topic_weights=None, word_vectors=None,
                  expvars_train=None, expvars_test=None, theta=None, gpu=False, inductive=True,
                  X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None, vocab=None):
@@ -59,6 +55,8 @@ class SLda2vec(nn.Module):
         super(SLda2vec, self).__init__()
         ndocs = X_train.shape[0]
         vocab_size = X_train.shape[1]
+        self.out_dir = out_dir
+        os.makedirs(out_dir, exist_ok=True)
         self.embed_size = embed_size
         self.nepochs = nepochs
         self.nnegs = nnegs
@@ -282,13 +280,12 @@ class SLda2vec(nn.Module):
         return negative_sampling_loss, dirichlet_loss, pred_loss, div_loss
 
     # TODO: move savefolder to init
-    def fit(self, batch_size=1, lr=0.001, savefolder="run0",
-            weight_decay=0.01):
+    def fit(self, batch_size=1, lr=0.001, weight_decay=0.01):
         train_dataloader = torch.utils.data.DataLoader(self.train_dataset, batch_size, shuffle=True,
                                                        num_workers=4, pin_memory=True,
                                                        drop_last=False)
         self.to(self.device)
-        train_loss_file = open(os.path.join(savefolder, "train_loss.txt"), "w")
+        train_loss_file = open(os.path.join(self.out_dir, "train_loss.txt"), "w")
 
         # SGD generalizes better: https://arxiv.org/abs/1705.08292
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
@@ -354,10 +351,10 @@ class SLda2vec(nn.Module):
             train_loss_file.flush()
 
             if (epoch + 1) % 10 == 0:
-                torch.save(self.state_dict(), os.path.join(savefolder, str(epoch+1) + ".slda2vec.pytorch"))
+                torch.save(self.state_dict(), os.path.join(self.out_dir, str(epoch+1) + ".slda2vec.pytorch"))
 
         # TODO: save the best on valid?
-        torch.save(self.state_dict(), os.path.join(savefolder, "slda2vec.pytorch"))
+        torch.save(self.state_dict(), os.path.join(self.out_dir, "slda2vec.pytorch"))
 
     def calculate_loss(self, batch, per_doc_loss=None):
         batch = autograd.Variable(torch.LongTensor(batch))
@@ -391,7 +388,7 @@ class SLda2vec(nn.Module):
             pred_proba = pred_weight.sigmoid()
         return pred_proba
 
-    def visualize(self, save_folder):
+    def visualize(self):
         with torch.no_grad():
             doc_topic_weights = self.doc_topic_weights(self.X_train)
             # [n_docs, n_topics]
@@ -401,7 +398,7 @@ class SLda2vec(nn.Module):
             vis_data = pyLDAvis.prepare(topic_term_dists=topic_word_dists.data.numpy(),
                                         doc_topic_dists=doc_topic_probs.data.numpy(),
                                         doc_lengths=self.doc_lens, vocab=self.vocab, term_frequency=self.word_counts)
-            pyLDAvis.save_html(vis_data, os.path.join(save_folder, "visualization.html"))
+            pyLDAvis.save_html(vis_data, os.path.join(self.out_dir, "visualization.html"))
 
     # TODO: add filtering such as pos and tf
     def get_concept_words(self, top_k=10, concept_metric='dot'):
