@@ -22,6 +22,7 @@ from constants import *
 from alias_multinomial import AliasMultinomial
 from sklearn.metrics import roc_auc_score
 from queue import Queue
+import pyLDAvis
 
 
 
@@ -30,39 +31,43 @@ np.random.seed(SEED)
 
 class SLda2vec(nn.Module):
 
-    def __init__(self, vocab_size=20000, embedding_size=300, nepochs=200, nnegs=15, word_counts=None, ntopics=25,
-                 ndocs=1000, lam=100.0, rho=100.0, eta=1.0, doc_weights=None, doc_topic_weights=None, word_vectors=None,
+    def __init__(self, embedding_size=300, nepochs=200, nnegs=15, word_counts=None, ntopics=25,
+                 lam=100.0, rho=100.0, eta=1.0, doc_lens=None, doc_topic_weights=None, word_vectors=None,
                  expvars_train=None, expvars_test=None, theta=None, gpu=False, inductive=True,
-                 X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None):
+                 X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None, vocab=None):
         """
 
-        :param vocab_size:
-        :param embedding_size:
-        :param nepochs:
-        :param nnegs:
-        :param word_counts:
-        :param ntopics:
-        :param ndocs:
-        :param lam:
-        :param rho:
-        :param eta:
-        :param doc_weights:
-        :param doc_topic_weights:
-        :param word_vectors:
-        :param expvars_train:
-        :param expvars_test:
-        :param theta:
-        :param gpu:
-        :param inductive:
-        :param count_matrix:
+        Parameters
+        ----------
+        embedding_size
+        nepochs
+        nnegs
+        word_counts
+        ntopics
+        lam
+        rho
+        eta
+        doc_weights
+        doc_topic_weights
+        word_vectors
+        expvars_train
+        expvars_test
+        theta
+        gpu
+        inductive
+        X_test
+        y_test
+        X_train
+        y_train
+        doc_windows
         """
         super(SLda2vec, self).__init__()
-        self.vocab_size = vocab_size
+        ndocs = X_train.shape[0]
+        vocab_size = X_train.shape[1]
         self.embedding_size = embedding_size
         self.nepochs = nepochs
         self.nnegs = nnegs
         self.ntopics = ntopics
-        self.ndocs = ndocs
         self.lam = lam
         self.rho = rho
         self.eta = eta
@@ -70,7 +75,6 @@ class SLda2vec(nn.Module):
         self.expvars_train = expvars_train
         self.expvars_test = expvars_test
         self.inductive = inductive
-        # TODO: count_matrix?
         self.X_train = X_train
         if self.X_train is not None:
             self.X_train = torch.FloatTensor(self.X_train)
@@ -87,10 +91,11 @@ class SLda2vec(nn.Module):
 
         self.train_dataset = PermutedSubsampledCorpus(doc_windows)
 
-        if doc_weights is None:
+        if doc_lens is None:
             self.docweights = np.ones(ndocs, dtype=np.float)
         else:
-            self.docweights = doc_weights
+            self.docweights = 1.0 / np.log(doc_lens)
+            self.doc_lens = doc_lens
         self.docweights = torch.FloatTensor(self.docweights)
 
         if expvars_train is not None:
@@ -163,9 +168,10 @@ class SLda2vec(nn.Module):
 
         # weights for negative sampling
         wf = np.power(word_counts, BETA) # exponent from word2vec paper
+        self.word_counts = word_counts
         wf = wf / np.sum(wf) # convert to probabilities
         self.weights = torch.FloatTensor(wf)
-
+        self.vocab = vocab
         # dropout
         self.dropout1 = nn.Dropout(PIVOTS_DROPOUT)
         self.dropout2 = nn.Dropout(DOC_VECS_DROPOUT)
@@ -286,7 +292,7 @@ class SLda2vec(nn.Module):
                                                        num_workers=4, pin_memory=True,
                                                        drop_last=False)
         self.to(self.device)
-        train_loss_file = open(savefolder + "/train_loss.txt", "w")
+        train_loss_file = open(os.path.join(savefolder, "train_loss.txt"), "w")
 
         # SGD generalizes better: https://arxiv.org/abs/1705.08292
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
@@ -352,7 +358,7 @@ class SLda2vec(nn.Module):
             train_loss_file.flush()
 
             if (epoch + 1) % 10 == 0:
-                torch.save(self.state_dict(), savefolder + "/" + str(epoch+1) + ".slda2vec.pytorch")
+                torch.save(self.state_dict(), os.path.join(savefolder, str(epoch+1) + ".slda2vec.pytorch"))
 
         # TODO: save the best on valid?
         torch.save(self.state_dict(), savefolder + "/slda2vec.pytorch")
@@ -374,19 +380,19 @@ class SLda2vec(nn.Module):
     def predict_proba(self, count_matrix, expvars=None):
         assert self.inductive
         batch_size = count_matrix.size(0)
+        with torch.no_grad:
+            doc_topic_weights = self.doc_topic_weights(count_matrix)
+            doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
 
-        doc_topic_weights = self.doc_topic_weights(count_matrix)
-        doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
+            ones = torch.ones((batch_size, 1)).to(self.device)
+            doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
 
-        ones = torch.ones((batch_size, 1)).to(self.device)
-        doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
+            if expvars is not None:
+                expvars = expvars
+                doc_topic_probs = torch.cat((doc_topic_probs, expvars), dim=1)
 
-        if expvars is not None:
-            expvars = expvars
-            doc_topic_probs = torch.cat((doc_topic_probs, expvars), dim=1)
-
-        pred_weight = torch.matmul(doc_topic_probs, self.theta)
-        pred_proba = pred_weight.sigmoid()
+            pred_weight = torch.matmul(doc_topic_probs, self.theta)
+            pred_proba = pred_weight.sigmoid()
         return pred_proba
 
     def grid_search(self, conf_path):
@@ -438,6 +444,17 @@ class SLda2vec(nn.Module):
         results = results.sort_values(by="best_loss")
         results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
         print("Grid search complete!")
+
+    def visualize(self, save_folder):
+        with torch.no_grad:
+            doc_topic_weights = self.doc_topic_weights(self.X_train)
+            # [n_docs, n_topics]
+            doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
+            # [n_topics, vocab_size]
+            topic_word_dists = torch.matmul(doc_topic_probs.transpose(0, 1), self.X_train)
+            vis_data = pyLDAvis.prepare(topic_term_dists=topic_word_dists, doc_topic_dists=doc_topic_probs,
+                                        doc_lengths=self.doc_lens, vocab=self.vocab, term_frequency=self.word_counts)
+            pyLDAvis.save_html(vis_data, os.path.join(save_folder, "visualization.html"))
 
 class PermutedSubsampledCorpus(torch.utils.data.Dataset):
     def __init__(self, windows):

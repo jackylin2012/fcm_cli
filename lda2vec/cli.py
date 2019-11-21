@@ -6,10 +6,10 @@ import sys
 import click
 
 from SLda2vec import SLda2vec
+from dataset.base_dataset import BaseDataset
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
-from collections import defaultdict
 
 
 @click.group()
@@ -26,6 +26,18 @@ def prep(ctx, dataset, window_size):
     pass
 
 
+def get_dataset(dataset):
+    module_path = "dataset.%s" % dataset
+    module = importlib.import_module(module_path)
+    for name in dir(module):
+        obj = getattr(module, name)
+        try:
+            if issubclass(obj, BaseDataset) and obj != BaseDataset:
+                return obj
+        except TypeError:  # If 'obj' is not a class
+            pass
+    raise ImportError("Cannot find a subclass of %s in %s" % (BaseDataset, module_path))
+
 @fcm.command(context_settings=CONTEXT_SETTINGS)
 @click.option('--dataset', help="Name of the dataset to use")
 @click.option('--ntopics', default=5, help="No. of topics")
@@ -41,16 +53,18 @@ def prep(ctx, dataset, window_size):
 @click.option('--batch', default=20, help="Batch size")
 @click.option('--device', default=0, help="CUDA device if CUDA is available")
 @click.option('--dropout', default=0.0, help="dropout rate applied on word/topic embedding")
-@click.option('--nepochs', default=20, help="No. of epochs")
+@click.option('--nepochs', default=10, help="No. of epochs")
 @click.pass_context
 def train(ctx, dataset, ntopics, out_dir, embedding_size, pretrained_embed, nnegs, lam, rho, eta,
           window_size, lr, batch, device, dropout, nepochs):
     """Train FCM"""
-    dataset_class = importlib.import_module("dataset.%s" % dataset)
-    data_attr = dataset_class.load_data()
+    dataset_class = get_dataset(dataset)
+    ds = dataset_class()
+    data_attr = ds.load_data(window_size)
     l2v = SLda2vec(embedding_size=embedding_size, nepochs=nepochs, nnegs=nnegs,
                    ntopics=ntopics, lam=lam, rho=rho, eta=eta, **data_attr)
     l2v.fit(batch_size=batch, lr=lr)
+    l2v.visualize("run0")
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)
