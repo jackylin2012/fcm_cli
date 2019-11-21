@@ -7,7 +7,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from dataset.base_dataset import BaseDataset, encode_documents
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(os.path.relpath(CURRENT_DIR, "../../"), "data", "news_group")
+DATA_DIR = os.path.join(os.path.abspath(os.path.join(CURRENT_DIR, os.pardir, os.pardir)), "data", "news_group")
 
 
 class NewsDataset(BaseDataset):

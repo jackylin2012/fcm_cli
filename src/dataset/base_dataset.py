@@ -55,7 +55,7 @@ class BaseDataset(object):
 
 
 def filter_list(original, include):
-    return [original[i] for i in range(include) if include[i]]
+    return [original[i] for i in range(len(include)) if include[i]]
 
 
 def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expvars_train=None):
@@ -69,27 +69,31 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
     X_train = vectorizer.fit_transform(doc_train).toarray()
     X_test = vectorizer.transform(doc_test).toarray()
     # only keep words included in the vectorizer's vocabulary
-    encoded_doc_train = [[vectorizer.vocabulary_.get(word) for word in doc] for doc in tokenized_doc_train]
+    encoded_doc_train = [[vectorizer.vocabulary_.get(word) for word in doc
+                          if vectorizer.vocabulary_.get(word) is not None]
+                         for doc in tokenized_doc_train]
     # calculate document lengths again after excluding out of vocabulary word
     doc_lens = np.array([len(doc) for doc in encoded_doc_train])
     valid_docs = doc_lens >= window_size + 1
+    tokenized_doc_train = filter_list(tokenized_doc_train, valid_docs)
     X_train = X_train[valid_docs]
     if expvars_train is not None:
         expvars_train = expvars_train[valid_docs]
     wordcounts_train = X_train.sum(axis=0)
     # only keep words with count > 0 in the filtered training set
     valid_words = wordcounts_train > 0
-    vocab = vectorizer.get_feature_names()
-    valid_vocab = [vocab[i] for i in range(valid_words) if valid_words[i]]
-    valid_vocab_dict = {w: i for i, w in enumerate(valid_vocab)}
+    vocab = filter_list(vectorizer.get_feature_names(), valid_words)
+    valid_vocab_dict = {w: i for i, w in enumerate(vocab)}
     # recalculate the encoded documents with the new vocab
-    encoded_doc_train = [[valid_vocab_dict[word] for word in doc] for doc in tokenized_doc_train]
-    X_train = X_train[:, valid_vocab]
-    X_test = X_test[:, valid_vocab]
+    encoded_doc_train = [[valid_vocab_dict[word] for word in doc
+                          if word in valid_vocab_dict]
+                         for doc in tokenized_doc_train]
+    X_train = X_train[:, valid_words]
+    X_test = X_test[:, valid_words]
 
     y_train = np.array([y_train[i] for i in range(len(valid_docs)) if valid_docs[i]])
     doc_windows_train = get_windows(encoded_doc_train, y_train, window_size=window_size)
-    return X_train, y_train, X_test, wordcounts_train, doc_lens, valid_vocab, doc_windows_train, expvars_train
+    return X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, expvars_train
 
 
 def get_windows(encoded_docs, labels, window_size):

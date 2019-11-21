@@ -1,7 +1,10 @@
 import os
+import warnings
 
 import numpy as np
-import pyLDAvis
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import pyLDAvis
 import torch
 import torch.autograd as autograd
 import torch.nn as nn

@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from dataset.base_dataset import BaseDataset, encode_documents
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(os.path.relpath(CURRENT_DIR, "../../"), "data", "wcai")
+DATA_DIR = os.path.join(os.path.abspath(os.path.join(CURRENT_DIR, os.pardir, os.pardir)), "data", "wcai")
 
 class WcaiDataset(BaseDataset):
     data = None
