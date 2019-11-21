@@ -77,7 +77,6 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
     valid_docs = doc_lens >= window_size + 1
     tokenized_doc_train = filter_list(tokenized_doc_train, valid_docs)
     X_train = X_train[valid_docs]
-    doc_lens = doc_lens[valid_docs]
     if expvars_train is not None:
         expvars_train = expvars_train[valid_docs]
     wordcounts_train = X_train.sum(axis=0)
@@ -89,11 +88,13 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
     encoded_doc_train = [[valid_vocab_dict[word] for word in doc
                           if word in valid_vocab_dict]
                          for doc in tokenized_doc_train]
+    doc_lens = np.array([len(doc) for doc in encoded_doc_train])
     X_train = X_train[:, valid_words]
     X_test = X_test[:, valid_words]
 
     y_train = np.array([y_train[i] for i in range(len(valid_docs)) if valid_docs[i]])
     doc_windows_train = get_windows(encoded_doc_train, y_train, window_size=window_size)
+    assert X_train.shape[0] == doc_lens.shape[0]
     return X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, expvars_train
 
 

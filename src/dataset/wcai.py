@@ -78,7 +78,7 @@ class WcaiDataset(BaseDataset):
             labels, expvars, test_size=0.15)
 
         vectorizer = CountVectorizer(min_df=WcaiDataset.MIN_DF, max_df=WcaiDataset.MAX_DF, max_features=vocab_size)
-        X_train, y_train, X_test, wordcounts_train, doc_lens, valid_vocab, doc_windows_train, _ = \
+        X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, _ = \
             encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expvars_train)
         print(expvars_train.shape)
         print(expvars_test.shape)
@@ -91,7 +91,7 @@ class WcaiDataset(BaseDataset):
             "y_train": y_train,
             "X_test": X_test,
             "y_test": y_test,
-            "vocab": vectorizer.get_feature_names(),
+            "vocab": vocab,
             "expvars_train": expvars_train,
             "expvars_test": expvars_test
         }
