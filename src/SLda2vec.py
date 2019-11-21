@@ -15,6 +15,8 @@ from tqdm import tqdm
 
 from alias_multinomial import AliasMultinomial
 from constants import *
+from scipy.spatial.distance import cdist, pdist
+
 
 torch.manual_seed(SEED)
 np.random.seed(SEED)
@@ -397,6 +399,19 @@ class SLda2vec(nn.Module):
                                         doc_topic_dists=doc_topic_probs.data.numpy(),
                                         doc_lengths=self.doc_lens, vocab=self.vocab, term_frequency=self.word_counts)
             pyLDAvis.save_html(vis_data, os.path.join(save_folder, "visualization.html"))
+
+    def get_concept_words(self, top_k=10, concept_metric='dot'):
+        concept_embed = self.embedding_t.data.numpy()
+        word_embed = self.embedding_i.data.numpy()
+        if concept_metric == 'dot':
+            dist = -np.matmul(concept_embed, np.transpose(word_embed, (0, 1)))
+        else:
+            dist = cdist(concept_embed, word_embed, metric=concept_metric)
+        nearest_words = np.argsort(dist, axis=1)[:, :top_k]  # indices of words with min cosine distance
+        for j in range(self.ntopics):
+            topic_words = ' '.join([self.vocab[i] for i in nearest_words[j, :]])
+            # TODO: write to result file
+            print('topic %d: %s' % (j + 1, topic_words))
 
 class PermutedSubsampledCorpus(torch.utils.data.Dataset):
     def __init__(self, windows):

@@ -45,20 +45,28 @@ def get_dataset(dataset):
 @click.option('--window-size', default=10, help="Word embedding context window size")
 @click.option('--lr', default=0.001, help="Learning rate")
 @click.option('--batch', default=20, help="Batch size")
-@click.option('--device', default=0, help="CUDA device if CUDA is available")
+@click.option('--gpu', default=0, help="CUDA device if CUDA is available")
 @click.option('--dropout', default=0.0, help="dropout rate applied on word/topic embedding")
 @click.option('--nepochs', default=10, help="No. of epochs")
+@click.option('--top-k', default=10, help="No. of most similar words to represent concepts")
+@click.option('--concept-metric', default="dot",
+              type=click.Choice(['dot', 'braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation',
+                                 'cosine', 'dice', 'euclidean', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis',
+                                 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean',
+                                 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'wminkowski', 'yule']),
+              help="Distance metric type")
 @click.pass_context
 def train(ctx, dataset, ntopics, out_dir, embed_size, vocab_size, pretrained_embed, nnegs, lam, rho, eta,
-          window_size, lr, batch, device, dropout, nepochs):
+          window_size, lr, batch, gpu, dropout, nepochs, top_k, concept_metric):
     """Train FCM"""
     dataset_class = get_dataset(dataset)
     ds = dataset_class()
     data_attr = ds.load_data(vocab_size=vocab_size, window_size=window_size)
     l2v = SLda2vec(embed_size=embed_size, nepochs=nepochs, nnegs=nnegs,
-                   ntopics=ntopics, lam=lam, rho=rho, eta=eta, **data_attr)
+                   ntopics=ntopics, lam=lam, rho=rho, eta=eta, gpu=gpu, **data_attr)
     l2v.fit(batch_size=batch, lr=lr)
     l2v.visualize("run0")
+    l2v.get_concept_words(top_k, concept_metric)
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)
