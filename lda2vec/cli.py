@@ -38,10 +38,10 @@ def prep(ctx, dataset, window_size):
 @click.option('--eta', default=10, help="Diversity loss weight")
 @click.option('--window-size', default=10, help="Word embedding context window size")
 @click.option('--lr', default=0.001, help="Learning rate")
-@click.option('--batch', default=1, help="Batch size")
+@click.option('--batch', default=20, help="Batch size")
 @click.option('--device', default=0, help="CUDA device if CUDA is available")
 @click.option('--dropout', default=0.0, help="dropout rate applied on word/topic embedding")
-@click.option('--nepochs', default=100, help="No. of epochs")
+@click.option('--nepochs', default=20, help="No. of epochs")
 @click.pass_context
 def train(ctx, dataset, ntopics, out_dir, embedding_size, pretrained_embed, nnegs, lam, rho, eta,
           window_size, lr, batch, device, dropout, nepochs):
@@ -50,7 +50,7 @@ def train(ctx, dataset, ntopics, out_dir, embedding_size, pretrained_embed, nneg
     data_attr = dataset_class.load_data()
     l2v = SLda2vec(embedding_size=embedding_size, nepochs=nepochs, nnegs=nnegs,
                    ntopics=ntopics, lam=lam, rho=rho, eta=eta, **data_attr)
-    l2v.fit(windows=data_attr["doc_windows"], batch_size=batch, lr=lr)
+    l2v.fit(batch_size=batch, lr=lr)
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)

@@ -32,7 +32,7 @@ class SLda2vec(nn.Module):
 
     def __init__(self, vocab_size=20000, embedding_size=300, nepochs=200, nnegs=15, word_counts=None, ntopics=25,
                  ndocs=1000, lam=100.0, rho=100.0, eta=1.0, doc_weights=None, doc_topic_weights=None, word_vectors=None,
-                 expvars_train=None, expvars_test=None, theta=None, gpu=False, inductive=False,
+                 expvars_train=None, expvars_test=None, theta=None, gpu=False, inductive=True,
                  X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None):
         """
 
@@ -83,7 +83,7 @@ class SLda2vec(nn.Module):
             self.X_test = torch.FloatTensor(self.X_test)
         self.y_test = y_test
         if self.y_test is not None:
-            self.y_test = torch.FloatTensor(self.X_test)
+            self.y_test = torch.FloatTensor(self.y_test)
 
         self.train_dataset = PermutedSubsampledCorpus(doc_windows)
 
@@ -271,7 +271,7 @@ class SLda2vec(nn.Module):
                             torch.t(self.embedding_t)).neg().sigmoid().clamp(min=EPS).log().sum()\
                    - (self.embedding_t * self.embedding_t).neg().sigmoid().clamp(min=EPS).log().sum()
         div_loss /= 2.0 # taking care of duplicate pairs T_i, T_j and T_j, T_i
-        div_loss = div_loss.expand(batch_size)
+        div_loss = div_loss.repeat(batch_size)
         div_loss *= w # downweight by document lengths
         div_loss *= self.eta
         if per_doc_loss is not None:
@@ -373,7 +373,6 @@ class SLda2vec(nn.Module):
     # TODO: only applicable to inductive, figure out what to do for non-inductive
     def predict_proba(self, count_matrix, expvars=None):
         assert self.inductive
-        count_matrix = count_matrix.to(self.device)
         batch_size = count_matrix.size(0)
 
         doc_topic_weights = self.doc_topic_weights(count_matrix)
@@ -383,7 +382,7 @@ class SLda2vec(nn.Module):
         doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
 
         if expvars is not None:
-            expvars = expvars.to(self.device)
+            expvars = expvars
             doc_topic_probs = torch.cat((doc_topic_probs, expvars), dim=1)
 
         pred_weight = torch.matmul(doc_topic_probs, self.theta)

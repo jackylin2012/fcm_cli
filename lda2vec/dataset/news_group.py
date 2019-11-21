@@ -66,17 +66,20 @@ def preprocess_documents(documents):
     return documents
 
 
+TRAIN_SIZE = 200
+TEST_SIZE = 100
+
 def load_data():
     if os.path.exists(SAVED_DATA):
         return pickle.load(open(SAVED_DATA, "rb"))
-    newsgroups_train = fetch_20newsgroups(subset='train', shuffle=False, remove=("headers", "footers", "quotes"),
+    newsgroups_train = fetch_20newsgroups(subset='train', shuffle=True, remove=("headers", "footers", "quotes"),
                                           categories=["alt.atheism", "comp.graphics"])
-    newsgroups_test = fetch_20newsgroups(subset='test', shuffle=False, remove=("headers", "footers", "quotes"),
+    newsgroups_test = fetch_20newsgroups(subset='test', shuffle=True, remove=("headers", "footers", "quotes"),
                                          categories=["alt.atheism", "comp.graphics"])
-    documents_train = newsgroups_train.data
-    y_train = newsgroups_train.target
-    documents_test = newsgroups_test.data
-    y_test = newsgroups_test.target
+    documents_train = newsgroups_train.data[:TRAIN_SIZE]
+    y_train = newsgroups_train.target[:TRAIN_SIZE]
+    documents_test = newsgroups_test.data[:TEST_SIZE]
+    y_test = newsgroups_test.target[:TEST_SIZE]
     vectorizer = CountVectorizer(min_df=0.01, max_df=0.8)
     X_train = vectorizer.fit_transform(documents_train)
     X_test = vectorizer.transform(documents_test)
