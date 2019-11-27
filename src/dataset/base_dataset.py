@@ -8,16 +8,13 @@ class BaseDataset(object):
     ``load_data``, that provides the necessary attributes of the dataset.
     """
 
-    # TODO: accept kwargs
-    def load_data(self, vocab_size, window_size):
+    def load_data(self, params):
         """Load the data with extracted features
 
         Parameters
         ----------
-        vocab_size : int
-            The maximum size of the vocabulary
-        window_size : int
-            The size of context window for training the word embedding
+        params : dict
+            A dictionary of parameters. "window_size" and "vocab_size" are required
 
         Returns
         -------

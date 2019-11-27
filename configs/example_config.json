@@ -1,0 +1,29 @@
+{
+    "dataset": "news_group",
+    "mode": "product",
+    "gpus": [0],
+    "max_threads": 1,
+    "max_mem": 8e9,
+    "wait_time": 300,
+    "out_dir": "../grid_search/run0",
+    "dataset_params" : {
+        "window_size": [5, 10],
+        "vocab_size": [5000, 20000],
+        "min_df": [0.01],
+        "max_df": [0.8]
+    },
+    "fcm_params": {
+        "embed_size": [100, 200],
+        "nnegs": [10, 20],
+        "ntopics": [5, 15],
+        "lam": [5, 10, 20],
+        "rho": [20, 40, 100],
+        "eta": [5, 10]
+    },
+    "fit_params": {
+        "lr": [0.01, 0.005],
+        "nepochs": [200],
+        "batch_size": [20],
+        "grad_clip": [5, 10]
+    }
+}

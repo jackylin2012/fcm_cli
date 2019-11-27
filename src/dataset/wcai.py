@@ -10,23 +10,16 @@ from dataset.base_dataset import BaseDataset, encode_documents
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(os.path.abspath(os.path.join(CURRENT_DIR, os.pardir, os.pardir)), "data", "wcai")
+MIN_DF = 0.01
+MAX_DF = 0.8
+TEST_RATIO = 0.15
+
 
 class WcaiDataset(BaseDataset):
-    data = None
-    MIN_DF = 0.01
-    MAX_DF = 0.8
-
-    def load_data(self, vocab_size, window_size):
-        if WcaiDataset.data is not None:
-            return WcaiDataset.data
-        # TODO: add override flag
-        file_name = os.path.join(DATA_DIR, "wcai_%d.pkl" % window_size)
-        if os.path.exists(file_name):
-            WcaiDataset.data = pickle.load(open(file_name, "rb"))
-            return WcaiDataset.data
+    def __init__(self):
+        print("Reading data...")
         df_exp = pd.read_hdf(os.path.join(DATA_DIR, "df_exp_var.hdf"), "df_exp_var")
 
-        print("Reading data...")
         df_reviews = pd.read_hdf(os.path.join(DATA_DIR, "df_select_nested_list.hdf"), key="wcai")
 
         print("Constructing positive/negative user-item pairs...")
@@ -62,38 +55,42 @@ class WcaiDataset(BaseDataset):
         documents = pos_documents + neg_documents
         labels = np.array([1] * len(pos_documents) + [0] * len(neg_documents))
         documents = [[" ".join(review) for review in document] for document in documents]
-        
+
         # explanatory vars
         expvars = []
         all_pairs = list(positive_pairs) + list(negative_pairs)
         for bvid, productid in all_pairs:
             expvars.append(df_exp.loc[productid].loc[bvid].values)
         expvars = np.array(expvars)
-        print(expvars.shape)
-        
+
         concatenated_documents = [" ".join(review_list) for review_list in documents]
+        self.doc_train, self.doc_test, self.y_train, self.y_test, self.expvars_train, self.expvars_test = \
+            train_test_split(concatenated_documents, labels, expvars, test_size=TEST_RATIO)
 
-        doc_train, doc_test, y_train, y_test, expvars_train, expvars_test = train_test_split(
-            concatenated_documents,
-            labels, expvars, test_size=0.15)
+    def load_data(self, params):
+        window_size = params["window_size"]  # context window size
+        vocab_size = params["vocab_size"]  # max vocabulary size
+        min_df = params.get("min_df", MIN_DF)  # min document frequency of vocabulary, defaults to MIN_DF
+        max_df = params.get("max_df", MAX_DF)  # max document frequency of vocabulary, defaults to MAX_DF
+        file_name = os.path.join(DATA_DIR, "wcai_%d.pkl" % window_size)
+        if os.path.exists(file_name):
+            WcaiDataset.data = pickle.load(open(file_name, "rb"))
+            return WcaiDataset.data
 
-        vectorizer = CountVectorizer(min_df=WcaiDataset.MIN_DF, max_df=WcaiDataset.MAX_DF, max_features=vocab_size)
+        vectorizer = CountVectorizer(min_df=min_df, max_df=max_df, max_features=vocab_size)
         X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, _ = \
-            encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expvars_train)
-        print(expvars_train.shape)
-        print(expvars_test.shape)
-
-        WcaiDataset.data = {
+            encode_documents(vectorizer, window_size, self.doc_train, self.y_train, self.doc_test, self.expvars_train)
+        data = {
             "doc_windows": doc_windows_train,
             "word_counts": wordcounts_train,
             "doc_lens": doc_lens,
             "X_train": X_train,
             "y_train": y_train,
             "X_test": X_test,
-            "y_test": y_test,
+            "y_test": self.y_test,
             "vocab": vocab,
-            "expvars_train": expvars_train,
-            "expvars_test": expvars_test
+            "expvars_train": self.expvars_train,
+            "expvars_test": self.expvars_test
         }
-        pickle.dump(WcaiDataset.data, open(file_name, "wb"))
-        return WcaiDataset.data
+        pickle.dump(data, open(file_name, "wb"))
+        return data

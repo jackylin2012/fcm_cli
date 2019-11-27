@@ -1,3 +1,4 @@
+import logging
 import os
 
 import numpy as np
@@ -12,20 +13,22 @@ from scipy.spatial.distance import cdist
 from scipy.stats import ortho_group
 from sklearn.metrics import roc_auc_score
 from torch.nn import Parameter
-from tqdm import tqdm
 
-from alias_multinomial import AliasMultinomial
 from constants import *
+from util.alias_multinomial import AliasMultinomial
 
 torch.manual_seed(SEED)
 np.random.seed(SEED)
 
-class SLda2vec(nn.Module):
 
-    def __init__(self, out_dir, embed_size=300, nepochs=200, nnegs=15, word_counts=None, ntopics=25,
-                 lam=100.0, rho=100.0, eta=1.0, doc_lens=None, doc_topic_weights=None, word_vectors=None,
-                 expvars_train=None, expvars_test=None, theta=None, gpu=False, inductive=True,
-                 X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None, vocab=None):
+class FocusedConceptMiner(nn.Module):
+
+    def __init__(self, out_dir, embed_size=300, nnegs=15, ntopics=25,
+                 lam=100.0, rho=100.0, eta=1.0, word_counts=None, doc_lens=None, doc_topic_weights=None,
+                 word_vectors=None, theta=None, gpu=None, inductive=True,
+                 X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None,
+                 vocab=None, expvars_train=None, expvars_test=None,
+                 file_log=False):
         """
 
         Parameters
@@ -52,19 +55,18 @@ class SLda2vec(nn.Module):
         y_train
         doc_windows
         """
-        super(SLda2vec, self).__init__()
+        super(FocusedConceptMiner, self).__init__()
         ndocs = X_train.shape[0]
         vocab_size = X_train.shape[1]
         self.out_dir = out_dir
         os.makedirs(out_dir, exist_ok=True)
         self.embed_size = embed_size
-        self.nepochs = nepochs
         self.nnegs = nnegs
         self.ntopics = ntopics
         self.lam = lam
         self.rho = rho
         self.eta = eta
-        self.alpha = 1.0/ntopics
+        self.alpha = 1.0 / ntopics
         self.expvars_train = expvars_train
         self.expvars_test = expvars_test
         self.inductive = inductive
@@ -105,11 +107,16 @@ class SLda2vec(nn.Module):
 
         # regular embedding for topics (never indexed so not sparse)
         self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embed_size)[0:ntopics]))
+        if file_log:
+            logging.basicConfig(filename="fcm.log", format='%(asctime)s : %(levelname)s : %(message)s')
+        else:
+            logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s')
+        self.logger = logging.getLogger(__name__)
 
         # embedding for per-document topic weights
         if self.inductive:
-            hidden_layer_size = 150
-            num_hidden_layers = 1
+            hidden_layer_size = HIDDEN_LAYER_DIM
+            num_hidden_layers = NUM_LAYERS
             weight_generator_network = []
             if num_hidden_layers > 0:
                 # input layer
@@ -160,9 +167,10 @@ class SLda2vec(nn.Module):
         self.theta.requires_grad = True
 
         # weights for negative sampling
-        wf = np.power(word_counts, BETA) # exponent from word2vec paper
+        wf = np.power(word_counts, BETA)  # exponent from word2vec paper
         self.word_counts = word_counts
-        wf = wf / np.sum(wf) # convert to probabilities
+        wf = wf / np.sum(wf)  # convert to probabilities
+        self.multinomial = AliasMultinomial(wf, self.device)
         self.weights = torch.FloatTensor(wf)
         self.vocab = vocab
         # dropout
@@ -175,7 +183,6 @@ class SLda2vec(nn.Module):
                 self.device = "cuda:0"
         else:
             self.device = 'cpu'
-        self.multinomial = AliasMultinomial(wf, self.device)
 
     def forward(self, doc, target, contexts, labels, per_doc_loss=None):
         """
@@ -200,10 +207,10 @@ class SLda2vec(nn.Module):
         else:
             doc_topic_weights = self.doc_topic_weights(doc)
         doc_topic_probs = doc_topic_weights
-        doc_topic_probs = doc_topic_probs.unsqueeze(1) # (batches, 1, T)
-        topic_embeddings = self.embedding_t.expand(batch_size, -1, -1) # (batches, T, E)
-        doc_vector = torch.bmm(doc_topic_probs, topic_embeddings) # (batches, 1, E)
-        doc_vector = doc_vector.squeeze(dim=1) # (batches, E)
+        doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
+        topic_embeddings = self.embedding_t.expand(batch_size, -1, -1)  # (batches, T, E)
+        doc_vector = torch.bmm(doc_topic_probs, topic_embeddings)  # (batches, 1, E)
+        doc_vector = doc_vector.squeeze(dim=1)  # (batches, E)
         doc_vector = self.dropout2(doc_vector)
 
         # sample negative word indices for negative sampling loss; approximation by sampling from the whole vocab
@@ -215,34 +222,33 @@ class SLda2vec(nn.Module):
             nwords = self.multinomial.draw(batch_size * window_size * self.nnegs)
             nwords = autograd.Variable(nwords).view(batch_size, window_size * self.nnegs)
 
-
         # compute word vectors
-        ivectors = self.dropout1(self.embedding_i(target)) # column vector
-        ovectors = self.embedding_i(contexts) # (batches, window_size, E) 
-        nvectors = self.embedding_i(nwords).neg() # row vector
+        ivectors = self.dropout1(self.embedding_i(target))  # column vector
+        ovectors = self.embedding_i(contexts)  # (batches, window_size, E)
+        nvectors = self.embedding_i(nwords).neg()  # row vector
 
         # construct "context" vector defined by lda2vec
         context_vectors = doc_vector + ivectors
-        context_vectors = context_vectors.unsqueeze(2) # column vector, batch needed for bmm
+        context_vectors = context_vectors.unsqueeze(2)  # column vector, batch needed for bmm
 
         # compose negative sampling loss
         oloss = torch.bmm(ovectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=EPS).log().sum(1)
         nloss = torch.bmm(nvectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=EPS).log().sum(1)
         negative_sampling_loss = (oloss + nloss).neg()
-        negative_sampling_loss *= w # downweight loss for each document
+        negative_sampling_loss *= w  # downweight loss for each document
         if per_doc_loss is not None:
             per_doc_loss[doc] += negative_sampling_loss.data
-        negative_sampling_loss = negative_sampling_loss.mean() # mean over the batch
+        negative_sampling_loss = negative_sampling_loss.mean()  # mean over the batch
 
         # compose dirichlet loss
-        doc_topic_probs = doc_topic_probs.squeeze(dim=1) # (batches, T)
+        doc_topic_probs = doc_topic_probs.squeeze(dim=1)  # (batches, T)
         doc_topic_probs = doc_topic_probs.clamp(min=EPS)
-        dirichlet_loss = doc_topic_probs.log().sum(1) # (batches, 1)
+        dirichlet_loss = doc_topic_probs.log().sum(1)  # (batches, 1)
         dirichlet_loss *= self.lam * (1.0 - self.alpha)
-        dirichlet_loss *= w # downweight loss for each document
+        dirichlet_loss *= w  # downweight loss for each document
         if per_doc_loss is not None:
             per_doc_loss[doc] += dirichlet_loss.data
-        dirichlet_loss = dirichlet_loss.mean() # mean over the entire batch
+        dirichlet_loss = dirichlet_loss.mean()  # mean over the entire batch
 
         ones = torch.ones((batch_size, 1)).to(self.device)
         doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
@@ -267,31 +273,56 @@ class SLda2vec(nn.Module):
         #   3. Loss = (\sum_i \sum_j log(sigmoid(T_i, T_j)) - \sum_i log(sigmoid(T_i, T_i)) )
         #           = \sum_i \sum_{j > i} log(sigmoid(T_i, T_j))
         div_loss = torch.mm(self.embedding_t,
-                            torch.t(self.embedding_t)).neg().sigmoid().clamp(min=EPS).log().sum()\
+                            torch.t(self.embedding_t)).neg().sigmoid().clamp(min=EPS).log().sum() \
                    - (self.embedding_t * self.embedding_t).neg().sigmoid().clamp(min=EPS).log().sum()
-        div_loss /= 2.0 # taking care of duplicate pairs T_i, T_j and T_j, T_i
+        div_loss /= 2.0  # taking care of duplicate pairs T_i, T_j and T_j, T_i
         div_loss = div_loss.repeat(batch_size)
-        div_loss *= w # downweight by document lengths
+        div_loss *= w  # downweight by document lengths
         div_loss *= self.eta
         if per_doc_loss is not None:
             per_doc_loss[doc] += div_loss.data
-        div_loss = div_loss.mean() # mean over the entire batch
+        div_loss = div_loss.mean()  # mean over the entire batch
 
         return negative_sampling_loss, dirichlet_loss, pred_loss, div_loss
 
-    # TODO: move savefolder to init
-    def fit(self, batch_size=1, lr=0.001, weight_decay=0.01):
+    def fit(self, lr=0.01, nepochs=200, batch_size=10, weight_decay=0.01, grad_clip=5, save_epochs=10):
+        """
+        Train the FCM model
+
+        Parameters
+        ----------
+        lr : float
+            Learning rate
+        nepochs : int
+            Number of training epochs
+        batch_size : int
+            Batch size
+        weight_decay : float
+            Adam optimizer weight decay (L2 penalty)
+        grad_clip : float
+            Maximum gradients magnitude. Gradients will be clipped within the range [-grad_clip, grad_clip]
+        save_epochs : int
+            The number of epochs in between saving the model weights
+
+        Returns
+        -------
+        metrics : ndarray, shape (n_epochs, 6)
+            Training metrics from each epoch including: total_loss, avg_sgns_loss, avg_diversity_loss, avg_pred_loss,
+            avg_diversity_loss, train_auc, test_auc
+        """
         train_dataloader = torch.utils.data.DataLoader(self.train_dataset, batch_size, shuffle=True,
                                                        num_workers=4, pin_memory=True,
                                                        drop_last=False)
         self.to(self.device)
         train_loss_file = open(os.path.join(self.out_dir, "train_loss.txt"), "w")
+        train_loss_file.write("total_loss, avg_sgns_loss, avg_diversity_loss, avg_pred_loss, "
+                              "avg_diversity_loss，train_auc, test_auc\n")
 
         # SGD generalizes better: https://arxiv.org/abs/1705.08292
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
         nwindows = len(self.train_dataset)
-
-        for epoch in tqdm(range(self.nepochs), desc="Training epochs"):
+        metrics = []
+        for epoch in range(nepochs):
             total_sgns_loss = 0.0
             total_dirichlet_loss = 0.0
             total_pred_loss = 0.0
@@ -307,7 +338,7 @@ class SLda2vec(nn.Module):
                 # gradient clipping
                 for p in self.parameters():
                     if p.requires_grad:
-                        p.grad = p.grad.clamp(min=-GRAD_CLIP, max=GRAD_CLIP)
+                        p.grad = p.grad.clamp(min=-grad_clip, max=grad_clip)
 
                 optimizer.step()
 
@@ -318,43 +349,40 @@ class SLda2vec(nn.Module):
                 total_pred_loss += pred_loss.data * nsamples
                 total_diversity_loss += div_loss.data * nsamples
 
-            auc = -1.
-            if self.X_test is not None and self.y_test is not None:
-                if self.expvars_test is None:
-                    y_pred = self.predict_proba(torch.FloatTensor(self.X_test)).cpu().detach().numpy()
-                else:
-                    y_pred = self.predict_proba(torch.FloatTensor(self.X_test),
-                                                self.expvars_test).cpu().detach().numpy()
-                auc = roc_auc_score(self.y_test, y_pred)
-            train_auc = -1.
-            if self.X_train is not None and self.y_train is not None:
-                if self.expvars_train is None:
-                    y_pred = self.predict_proba(torch.FloatTensor(self.X_train)).cpu().detach().numpy()
-                else:
-                    y_pred = self.predict_proba(torch.FloatTensor(self.X_train),
-                                                self.expvars_train).cpu().detach().numpy()
-                train_auc = roc_auc_score(self.y_train, y_pred)
+            train_auc = self.calculate_auc("Train", self.X_train, self.y_train, self.expvars_train)
+            test_auc = self.calculate_auc("Test", self.X_test, self.y_test, self.expvars_test)
 
-            print("epoch " + str(epoch) + ":")
-            print("Train AUC: %.4f" % (train_auc))
-            print("Test AUC: %.4f" % (auc)),
-            print("Total loss: %.4f" % ((total_sgns_loss+total_dirichlet_loss+total_pred_loss+total_diversity_loss)/nwindows))
-            print("SGNS loss: %.4f" % (total_sgns_loss/nwindows))
-            print("Dirichlet loss: %.4f" % (total_dirichlet_loss/nwindows))
-            print("Prediction loss: %.4f" % (total_pred_loss/nwindows))
-            print("Diversity loss: %.4f" % (total_diversity_loss/nwindows))
-            train_loss_file.write("%.4f" % ((total_sgns_loss+total_dirichlet_loss+total_pred_loss+total_diversity_loss)/nwindows) + ",")
-            train_loss_file.write("%.4f" % (total_sgns_loss/nwindows) + ",")
-            train_loss_file.write("%.4f" % (total_dirichlet_loss/nwindows) + ",")
-            train_loss_file.write("%.4f" % (total_pred_loss/nwindows) + ",")
-            train_loss_file.write("%.4f" % (total_diversity_loss/nwindows) + "\n")
+            total_loss = (total_sgns_loss + total_dirichlet_loss + total_pred_loss + total_diversity_loss) / nwindows
+            avg_sgns_loss = total_sgns_loss / nwindows
+            avg_dirichlet_loss = total_dirichlet_loss / nwindows
+            avg_pred_loss = total_pred_loss / nwindows
+            avg_diversity_loss = total_dirichlet_loss / nwindows
+            self.logger.info("epoch %d/%d:" % (epoch, nepochs))
+            self.logger.info("Total loss: %.4f" % total_loss)
+            self.logger.info("SGNS loss: %.4f" % avg_sgns_loss)
+            self.logger.info("Dirichlet loss: %.4f" % avg_dirichlet_loss)
+            self.logger.info("Prediction loss: %.4f" % avg_pred_loss)
+            self.logger.info("Diversity loss: %.4f" % avg_diversity_loss)
+            train_loss_file.write("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n" %
+                                  (total_loss, avg_sgns_loss, avg_diversity_loss, avg_pred_loss,
+                                   avg_diversity_loss, train_auc, test_auc))
             train_loss_file.flush()
+            metrics.append([total_loss, avg_sgns_loss, avg_diversity_loss, avg_pred_loss,
+                            avg_diversity_loss, train_auc, test_auc])
+            if (epoch + 1) % save_epochs == 0:
+                torch.save(self.state_dict(), os.path.join(self.out_dir, str(epoch + 1) + ".slda2vec.pytorch"))
 
-            if (epoch + 1) % 10 == 0:
-                torch.save(self.state_dict(), os.path.join(self.out_dir, str(epoch+1) + ".slda2vec.pytorch"))
-
-        # TODO: save the best on valid?
         torch.save(self.state_dict(), os.path.join(self.out_dir, "slda2vec.pytorch"))
+        return np.array(metrics)
+
+    def calculate_auc(self, split, X, y, expvars):
+        if self.expvars_test is None:
+            y_pred = self.predict_proba(X).cpu().detach().numpy()
+        else:
+            y_pred = self.predict_proba(X, expvars).cpu().detach().numpy()
+        auc = roc_auc_score(y, y_pred)
+        self.logger.info("%s AUC: %.4f" % (split, auc))
+        return auc
 
     def calculate_loss(self, batch, per_doc_loss=None):
         batch = autograd.Variable(torch.LongTensor(batch))
@@ -412,7 +440,8 @@ class SLda2vec(nn.Module):
         for j in range(self.ntopics):
             topic_words = ' '.join([self.vocab[i] for i in nearest_words[j, :]])
             # TODO: write to result file
-            print('topic %d: %s' % (j + 1, topic_words))
+            self.logger.info('topic %d: %s' % (j + 1, topic_words))
+
 
 class PermutedSubsampledCorpus(torch.utils.data.Dataset):
     def __init__(self, windows):

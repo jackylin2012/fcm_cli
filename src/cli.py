@@ -1,12 +1,11 @@
 #!/usr/bin/env python
-import importlib
 import os
 import sys
 
 import click
 
-from SLda2vec import SLda2vec
-from dataset.base_dataset import BaseDataset
+from fcm import FocusedConceptMiner
+from util.helper_functions import get_dataset
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -18,25 +17,13 @@ def fcm(ctx):
     pass
 
 
-def get_dataset(dataset):
-    module_path = "dataset.%s" % dataset
-    module = importlib.import_module(module_path)
-    for name in dir(module):
-        obj = getattr(module, name)
-        try:
-            if issubclass(obj, BaseDataset) and obj != BaseDataset:
-                return obj
-        except TypeError:  # If 'obj' is not a class
-            pass
-    raise ImportError("Cannot find a subclass of %s in %s" % (BaseDataset, module_path))
-
-
 @fcm.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('dataset')
 @click.argument('out-dir')
 @click.option('--ntopics', default=5, help="No. of topics")
 @click.option('--embed-size', default=50, help="Word/topic embedding size")
 @click.option('--vocab-size', default=10000, help="Maximum vocabulary size")
+# TODO: use pretrained embedding
 @click.option('--pretrained-embed', type=str, default=None, help="Pretrained word embedding path")
 @click.option('--nnegs', default=5, help="No. of negative samples")
 @click.option('--lam', default=10, help="Dirichlet loss weight")
@@ -66,12 +53,12 @@ def train(ctx, dataset, ntopics, out_dir, embed_size, vocab_size, pretrained_emb
     """
     dataset_class = get_dataset(dataset)
     ds = dataset_class()
-    data_attr = ds.load_data(vocab_size=vocab_size, window_size=window_size)
-    l2v = SLda2vec(out_dir, embed_size=embed_size, nepochs=nepochs, nnegs=nnegs,
-                   ntopics=ntopics, lam=lam, rho=rho, eta=eta, gpu=gpu, **data_attr)
-    l2v.fit(batch_size=batch, lr=lr)
-    l2v.visualize()
-    l2v.get_concept_words(top_k, concept_metric)
+    data_attr = ds.load_data({"vocab_size": vocab_size, "window_size": window_size})
+    fcminer = FocusedConceptMiner(out_dir, embed_size=embed_size, nnegs=nnegs,
+                              ntopics=ntopics, lam=lam, rho=rho, eta=eta, gpu=gpu,  **data_attr)
+    fcminer.fit(lr=lr, nepochs=nepochs, batch_size=batch)
+    fcminer.visualize()
+    fcminer.get_concept_words(top_k, concept_metric)
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)
