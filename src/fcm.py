@@ -15,7 +15,7 @@ from sklearn.metrics import roc_auc_score
 from torch.nn import Parameter
 
 from constants import *
-from util.alias_multinomial import AliasMultinomial
+from util import AliasMultinomial
 
 torch.manual_seed(SEED)
 np.random.seed(SEED)

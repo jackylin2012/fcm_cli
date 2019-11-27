@@ -13,7 +13,7 @@ import pandas
 import torch
 
 from fcm import FocusedConceptMiner
-from util.helper_functions import get_dataset
+from util import get_dataset
 
 random.seed(0)
 

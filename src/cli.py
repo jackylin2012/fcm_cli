@@ -5,7 +5,7 @@ import sys
 import click
 
 from fcm import FocusedConceptMiner
-from util.helper_functions import get_dataset
+from util import get_dataset
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -19,7 +19,7 @@ def fcm(ctx):
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('dataset')
-@click.argument('out-dir')
+@click.argument('out-dir', type=click.Path(file_okay=False))
 @click.option('--ntopics', default=5, help="No. of topics")
 @click.option('--embed-size', default=50, help="Word/topic embedding size")
 @click.option('--vocab-size', default=10000, help="Maximum vocabulary size")
@@ -62,7 +62,7 @@ def train(ctx, dataset, ntopics, out_dir, embed_size, vocab_size, pretrained_emb
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('config')
+@click.argument('config', type=click.Path(exists=True))
 @click.pass_context
 def grid_search(ctx, config):
     """Perform grid search with the given configuration
