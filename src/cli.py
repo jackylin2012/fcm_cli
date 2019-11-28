@@ -12,8 +12,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 @click.group()
-@click.pass_context
-def fcm(ctx):
+def fcm():
     pass
 
 
@@ -42,8 +41,7 @@ def fcm(ctx):
                                  'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean',
                                  'sokalmichener', 'sokalsneath', 'sqeuclidean', 'wminkowski', 'yule']),
               help="Distance metric type")
-@click.pass_context
-def train(ctx, dataset, ntopics, out_dir, embed_size, vocab_size, pretrained_embed, nnegs, lam, rho, eta,
+def train(dataset, ntopics, out_dir, embed_size, vocab_size, pretrained_embed, nnegs, lam, rho, eta,
           window_size, lr, batch, gpu, dropout, nepochs, top_k, concept_metric):
     """Train FCM
 
@@ -62,15 +60,15 @@ def train(ctx, dataset, ntopics, out_dir, embed_size, vocab_size, pretrained_emb
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)
-@click.argument('config', type=click.Path(exists=True))
-@click.pass_context
-def grid_search(ctx, config):
+@click.argument('config', type=click.Path(exists=True, dir_okay=False))
+def grid_search(config):
     """Perform grid search with the given configuration
 
     CONFIG is the path of the config file
     """
-    grid_search(config)
+    from grid_search import grid_search as gs
+    gs(config)
 
 
 if __name__ == '__main__':
-    fcm(obj={})
+    fcm()

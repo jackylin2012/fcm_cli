@@ -170,7 +170,6 @@ class FocusedConceptMiner(nn.Module):
         wf = np.power(word_counts, BETA)  # exponent from word2vec paper
         self.word_counts = word_counts
         wf = wf / np.sum(wf)  # convert to probabilities
-        self.multinomial = AliasMultinomial(wf, self.device)
         self.weights = torch.FloatTensor(wf)
         self.vocab = vocab
         # dropout
@@ -183,6 +182,7 @@ class FocusedConceptMiner(nn.Module):
                 self.device = "cuda:0"
         else:
             self.device = 'cpu'
+        self.multinomial = AliasMultinomial(wf, self.device)
 
     def forward(self, doc, target, contexts, labels, per_doc_loss=None):
         """

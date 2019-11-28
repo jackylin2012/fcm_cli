@@ -3,11 +3,11 @@
     "mode": "product",
     "gpus": [0],
     "max_threads": 1,
-    "max_mem": 8e9,
+    "max_mem": 5e6,
     "wait_time": 300,
     "out_dir": "../grid_search/run0",
     "dataset_params" : {
-        "window_size": [5, 10],
+        "window_size": [4, 10],
         "vocab_size": [5000, 20000],
         "min_df": [0.01],
         "max_df": [0.8]

@@ -14,6 +14,7 @@ import torch
 
 from fcm import FocusedConceptMiner
 from util.helper_functions import get_dataset
+import psutil
 
 random.seed(0)
 
@@ -25,37 +26,52 @@ lock = threading.Lock()
 
 
 def available_memory(device):
-    return torch.cuda.get_device_properties(device).total_memory - torch.cuda.memory_allocated(device)
+    if torch.cuda.is_available():
+        return torch.cuda.get_device_properties(torch.device(device)).total_memory - torch.cuda.memory_allocated(device)
+    else:
+        return psutil.virtual_memory()[4]
 
 
-def training_thread(start_gpu, ds, config):
+def training_thread(device_idx, ds, config):
     global results
     max_mem = config["max_mem"]
     wait_time = config["wait_time"]
-    top_k = config["top_k"]
-    concept_metric = config["concept_metric"]
+    top_k = config.get("top_k", 10)
+    concept_metric = config.get("concept_metric", "dot")
 
     while not queue.empty():
-        gpu = start_gpu
-        while available_memory(devices[gpu]) < max_mem:
+        available_mem = available_memory(devices[device_idx])
+        while available_mem < max_mem:
+            print("Not enough memory left ({} < max_mem={}) on device {}. Sleep for {} secs and retry".format(
+                available_mem, max_mem, devices[device_idx], wait_time))
             time.sleep(wait_time)
-            gpu = (gpu + 1) % len(devices)
-        gpu_num = gpus[gpu]
+            device_idx = (device_idx + 1) % len(devices)
+        device = devices[device_idx]
         dataset_params, fcm_params, fit_params = queue.get_nowait()
-        param_id = hashlib.md5(json.dumps({"dataset": dataset_params, "fcm": fcm_params}, sort_keys=True)).hexdigest()
-        print("Beginning training run on GPU {}... with id {} dataset_params={}, fcm_params={}, fit_params={}".format(
-            gpu_num, param_id, dataset_params, fcm_params, fit_params))
+        param_id = hashlib.md5(json.dumps({"dataset": dataset_params, "fcm": fcm_params, "fit": fit_params},
+                                          sort_keys=True).encode('utf-8')).hexdigest()
         try:
             with lock:
-                output_path = os.path.join(out_dir, param_id)
-                if os.path.exists(output_path):
-                    print("id {} has already been run, skip...")
+                current_out_dir = os.path.join(out_dir, param_id)
+                if os.path.exists(current_out_dir):
+                    print("id {} has already been run, skip...".format(param_id))
                     continue
-                os.makedirs(output_path)
+                os.makedirs(current_out_dir)
+                params = {**{"dataset." + k: v for k, v in dataset_params.items()},
+                          **{"fcm." + k: v for k, v in fcm_params.items()},
+                          **{"fit." + k: v for k, v in fit_params.items()}}
+                with open(os.path.join(current_out_dir, 'params.json'), 'w') as f:
+                    json.dump(params, f, sort_keys=True)
                 data_attr = ds.load_data(dataset_params)
-            print("Save grid search results to {}".format(os.path.abspath(output_path)))
+            print("Beginning training run on {}... with id {} dataset_params={}, fcm_params={}, fit_params={}".format(
+                device, param_id, dataset_params, fcm_params, fit_params))
+            print("Save grid search results to {}".format(os.path.abspath(current_out_dir)))
             start = time.perf_counter()
-            fc_miner = FocusedConceptMiner(out_dir, gpu=gpu, **fcm_params, **data_attr)
+            if torch.cuda.is_available():
+                fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True, **fcm_params,
+                                               **data_attr)
+            else:
+                fc_miner = FocusedConceptMiner(current_out_dir, file_log=True, **fcm_params, **data_attr)
             metrics = fc_miner.fit(**fit_params)
             fc_miner.visualize()
             fc_miner.get_concept_words(top_k, concept_metric)
@@ -65,8 +81,8 @@ def training_thread(start_gpu, ds, config):
             del data_attr
         except Exception as e:
             print(traceback.format_exc())
-            print("WARNING: exception raised while training on GPU {} with dataset_params={}, "
-                  "fcm_params={}, fit_params={}".format(gpu_num, dataset_params, fcm_params, fit_params))
+            print("WARNING: exception raised while training on {} with dataset_params={}, "
+                  "fcm_params={}, fit_params={}".format(device, dataset_params, fcm_params, fit_params))
             queue.put((dataset_params, fcm_params, fit_params))
         else:
             best_losses = metrics[:, :-2].min(axis=0)
@@ -80,7 +96,6 @@ def training_thread(start_gpu, ds, config):
                           "train_auc": best_aucs[0], "test_auc": best_aucs[1]}
             with lock:
                 results = results.append(new_result, ignore_index=True)
-                results = results.sort_values(by="best_loss")
                 results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
             print("Training run complete, results:", new_result)
         torch.cuda.empty_cache()
@@ -94,14 +109,17 @@ def grid_search(config_path):
     global gpus, out_dir, results, devices
 
     mode = config["mode"]
-    if "gpus" in config.keys():
-        gpus = config["gpus"]
-    else:
-        gpus = list(range(torch.cuda.device_count()))
     out_dir = config["out_dir"]
     max_threads = config["max_threads"]
     wait_time = config["wait_time"]
-    devices = [torch.device("cuda:{}".format(i)) for i in gpus]
+    if torch.cuda.is_available():
+        if "gpus" in config.keys():
+            gpus = config["gpus"]
+        else:
+            gpus = list(range(torch.cuda.device_count()))
+        devices = ["cuda:{}".format(i) for i in gpus]
+    else:
+        devices = ["cpu"]
     dataset_params = config["dataset_params"]
     fcm_params = config["fcm_params"]
     fit_params = config["fit_params"]
@@ -142,6 +160,5 @@ def grid_search(config_path):
         thread.setDaemon(True)
         thread.start()
     queue.join()
-    results = results.sort_values(by="best_loss")
     results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
     print("Grid search complete!")
