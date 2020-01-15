@@ -59,7 +59,7 @@ class WordsSweatDataset(BaseDataset):
             x_df['Description'] = x_df['Description'].str.replace('(<[^>]+>)|([^\x00-\x7F]+)', ' ', regex=True)\
                 .str.replace('&nbsp;', ' ', regex=False).str.replace('\n', ' ', regex=False)\
                 .str.replace('\t', ' ', regex=False)
-            x_df.IsBorrowerHomeowner = x_df.IsBorrowerHomeowner.astype(int)
+            x_df.IsBorrowerHomeowner = x_df.IsBorrowerHomeowner.astype(bool).astype(int)
             x_df['Description'] = x_df['Description'].fillna('')
             x_df.to_csv(os.path.join(DATA_DIR, "prosper_loan.csv"))
         else:
