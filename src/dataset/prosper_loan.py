@@ -79,7 +79,8 @@ class WordsSweatDataset(BaseDataset):
         vocab_size = params["vocab_size"]  # max vocabulary size
         min_df = params.get("min_df", MIN_DF)  # min document frequency of vocabulary, defaults to MIN_DF
         max_df = params.get("max_df", MAX_DF)  # max document frequency of vocabulary, defaults to MAX_DF
-        file_name = os.path.join(DATA_DIR, "prosper_%d.pkl" % window_size)
+        file_name = os.path.join(DATA_DIR, "prosper_w%d_v%d_min%.0E_max%.0E.pkl" % (window_size, vocab_size,
+                                                                                    min_df, max_df))
         if os.path.exists(file_name):
             WordsSweatDataset.data = pickle.load(open(file_name, "rb"))
             return WordsSweatDataset.data

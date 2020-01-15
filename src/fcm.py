@@ -376,6 +376,8 @@ class FocusedConceptMiner(nn.Module):
             y_pred = self.predict_proba(X).cpu().detach().numpy()
         else:
             y_pred = self.predict_proba(X, expvars).cpu().detach().numpy()
+        import pdb
+        pdb.set_trace()
         auc = roc_auc_score(y, y_pred)
         self.logger.info("%s AUC: %.4f" % (split, auc))
         return auc
@@ -418,15 +420,15 @@ class FocusedConceptMiner(nn.Module):
             doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
             # [n_topics, vocab_size]
             topic_word_dists = torch.matmul(doc_topic_probs.transpose(0, 1), self.X_train)
-            vis_data = pyLDAvis.prepare(topic_term_dists=topic_word_dists.data.numpy(),
-                                        doc_topic_dists=doc_topic_probs.data.numpy(),
+            vis_data = pyLDAvis.prepare(topic_term_dists=topic_word_dists.data.cpu().numpy(),
+                                        doc_topic_dists=doc_topic_probs.data.cpu().numpy(),
                                         doc_lengths=self.doc_lens, vocab=self.vocab, term_frequency=self.word_counts)
             pyLDAvis.save_html(vis_data, os.path.join(self.out_dir, "visualization.html"))
 
     # TODO: add filtering such as pos and tf
     def get_concept_words(self, top_k=10, concept_metric='dot'):
-        concept_embed = self.embedding_t.data.numpy()
-        word_embed = self.embedding_i.weight.data.numpy()
+        concept_embed = self.embedding_t.data.cpu().numpy()
+        word_embed = self.embedding_i.weight.data.cpu().numpy()
         if concept_metric == 'dot':
             dist = -np.matmul(concept_embed, np.transpose(word_embed, (1, 0)))
         else:
