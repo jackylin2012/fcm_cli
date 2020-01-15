@@ -64,6 +64,7 @@ class WordsSweatDataset(BaseDataset):
             x_df.to_csv(os.path.join(DATA_DIR, "prosper_loan.csv"))
         else:
             x_df = pd.read_csv(os.path.join(DATA_DIR, "prosper_loan.csv"))
+            x_df['Description'] = x_df['Description'].fillna('')
         documents = x_df['Description'].tolist()
         labels = x_df['LoanStatus'].isin(['Paid', 'Defaulted (PaidInFull)', 'Defaulted (SettledInFull)']).astype(
             int).to_numpy()
