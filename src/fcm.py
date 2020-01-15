@@ -197,7 +197,7 @@ class FocusedConceptMiner(nn.Module):
         batch_size, window_size = contexts.size()
 
         # reweight loss by document length
-        w = autograd.Variable(self.docweights[doc.data])
+        w = autograd.Variable(self.docweights[doc.data]).to(self.device)
         w /= w.sum()
         w *= w.size(0)
 
