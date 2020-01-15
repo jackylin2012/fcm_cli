@@ -376,8 +376,6 @@ class FocusedConceptMiner(nn.Module):
             y_pred = self.predict_proba(X).cpu().detach().numpy()
         else:
             y_pred = self.predict_proba(X, expvars).cpu().detach().numpy()
-        import pdb
-        pdb.set_trace()
         auc = roc_auc_score(y, y_pred)
         self.logger.info("%s AUC: %.4f" % (split, auc))
         return auc
