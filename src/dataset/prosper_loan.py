@@ -4,7 +4,9 @@ import re
 import string
 
 import nltk
-import numpy as np
+from sklearn.feature_extraction.stop_words import ENGLISH_STOP_WORDS
+
+nltk.download('punkt')
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
@@ -27,7 +29,8 @@ trans_table = {ord(c): None for c in string.punctuation + string.digits}
 stemmer = nltk.SnowballStemmer("english")
 
 def tokenize(text):
-        tokens = [word for word in nltk.word_tokenize(text.translate(trans_table)) if len(word) >= 3]
+        tokens = [word for word in nltk.word_tokenize(text.translate(trans_table)) if len(word) >= 3 and
+                  word not in ENGLISH_STOP_WORDS]
         stems = [stemmer.stem(item) for item in tokens]
         return stems
 
@@ -35,28 +38,36 @@ def tokenize(text):
 class WordsSweatDataset(BaseDataset):
     def __init__(self):
         print("Reading data...")
-        x_df = pd.read_csv(os.path.join(DATA_DIR, "loanfatetable.csv"))
-        x_df['CreationDate'] = pd.to_datetime(x_df['CreationDate'])
-        x_df = x_df[(x_df.CreationDate >= pd.to_datetime('2007-04-01')) & (x_df.CreationDate <= pd.to_datetime('2008-10-01'))]
-        x_df = x_df[['Key', 'AmountRequested', 'CreditGrade', 'DebtToIncome', 'IsBorrowerHomeowner', 'LenderRate', 'LoanStatus']]
+        saved_data_path = os.path.join(DATA_DIR, "prosper_loan.csv")
+        if not os.path.exists(saved_data_path):
+            x_df = pd.read_csv(os.path.join(DATA_DIR, "loanfatetable.csv"))
+            x_df['CreationDate'] = pd.to_datetime(x_df['CreationDate'])
+            x_df = x_df[(x_df.CreationDate >= pd.to_datetime('2007-04-01')) & (x_df.CreationDate <= pd.to_datetime('2008-10-01'))]
+            x_df = x_df[['Key', 'AmountRequested', 'CreditGrade', 'DebtToIncome', 'IsBorrowerHomeowner', 'LenderRate', 'LoanStatus']]
 
-        listing_df = pd.read_csv(os.path.join(DATA_DIR, "Listings.CSV"), engine='python')
-        listing_df['CreationDate'] = pd.to_datetime(listing_df['CreationDate'])
-        listing_df = listing_df[(listing_df.CreationDate >= pd.to_datetime('2007-04-01T00:00:00')) & (listing_df.CreationDate < pd.to_datetime('2008-10-02T00:00:00'))]
-        listing_df = listing_df[['Key', 'Description']]
-        x_df = pd.merge(x_df, listing_df, on='Key')
-        x_df = x_df[x_df['LoanStatus'].isin(['Charge-off', 'Defaulted (Bankruptcy)', 'Defaulted (Delinquency)', 'Paid', 'Defaulted (PaidInFull)', 'Defaulted (SettledInFull)'])]
-        labels = x_df['LoanStatus'].isin(['Paid', 'Defaulted (PaidInFull)', 'Defaulted (SettledInFull)']).astype(int).to_numpy()
-        x_df = pd.concat([x_df, pd.get_dummies(x_df['CreditGrade'], prefix='CreditGrade')], axis=1)
-        x_df = x_df.drop(columns="CreditGrade")
-        x_df['DebtToIncomeMissing'] = x_df['DebtToIncome'].isna().astype(int)
-        x_df['DebtToIncome'] = x_df['DebtToIncome'].fillna(0)
-        x_df['Description'] = x_df['Description'].fillna('')
-        documents = x_df['Description'].str.replace('(<[^>]+>)|([^\x00-\x7F]+)', ' ', regex=True)\
-            .str.replace('&nbsp;', ' ', regex=False).str.replace('\n', ' ', regex=False).str.replace('\t', ' ', regex=False)
-        x_df.to_csv(os.path.join(DATA_DIR, "prosper_loan.csv"))
-        x_df = x_df.drop(columns='LoanStatus')
-        x_df = x_df.drop(columns='Description')
+            listing_df = pd.read_csv(os.path.join(DATA_DIR, "Listings.CSV"), engine='python')
+            listing_df['CreationDate'] = pd.to_datetime(listing_df['CreationDate'])
+            listing_df = listing_df[(listing_df.CreationDate >= pd.to_datetime('2007-04-01T00:00:00')) & (listing_df.CreationDate < pd.to_datetime('2008-10-02T00:00:00'))]
+            listing_df = listing_df[['Key', 'Description']]
+            x_df = pd.merge(x_df, listing_df, on='Key')
+            x_df = x_df[x_df['LoanStatus'].isin(['Charge-off', 'Defaulted (Bankruptcy)', 'Defaulted (Delinquency)', 'Paid', 'Defaulted (PaidInFull)', 'Defaulted (SettledInFull)'])]
+            x_df = pd.concat([x_df, pd.get_dummies(x_df['CreditGrade'], prefix='CreditGrade')], axis=1)
+            x_df = x_df.drop(columns="CreditGrade")
+            x_df['DebtToIncomeMissing'] = x_df['DebtToIncome'].isna().astype(int)
+            x_df['DebtToIncome'] = x_df['DebtToIncome'].fillna(0)
+            x_df['Description'] = x_df['Description'].fillna('')
+            x_df['Description'] = x_df['Description'].str.replace('(<[^>]+>)|([^\x00-\x7F]+)', ' ', regex=True)\
+                .str.replace('&nbsp;', ' ', regex=False).str.replace('\n', ' ', regex=False)\
+                .str.replace('\t', ' ', regex=False)
+            x_df.IsBorrowerHomeowner = x_df.IsBorrowerHomeowner.astype(int)
+            x_df['Description'] = x_df['Description'].fillna('')
+            x_df.to_csv(os.path.join(DATA_DIR, "prosper_loan.csv"))
+        else:
+            x_df = pd.read_csv(os.path.join(DATA_DIR, "prosper_loan.csv"))
+        documents = x_df['Description'].tolist()
+        labels = x_df['LoanStatus'].isin(['Paid', 'Defaulted (PaidInFull)', 'Defaulted (SettledInFull)']).astype(
+            int).to_numpy()
+        x_df = x_df.drop(columns=['Key', 'LoanStatus', 'Description'])
         # explanatory vars
         expvars = x_df.to_numpy()
 
@@ -89,4 +100,5 @@ class WordsSweatDataset(BaseDataset):
             "expvars_test": self.expvars_test
         }
         pickle.dump(data, open(file_name, "wb"))
+
         return data

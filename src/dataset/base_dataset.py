@@ -61,6 +61,8 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
     # only keep documents with length longer than the window size
     doc_lens = np.array([len(d) for d in tokenized_doc_train])
     valid_docs = doc_lens >= window_size + 1
+    if expvars_train is not None:
+        expvars_train = expvars_train[valid_docs]
     doc_train = filter_list(doc_train, valid_docs)
     tokenized_doc_train = filter_list(tokenized_doc_train, valid_docs)
     X_train = vectorizer.fit_transform(doc_train).toarray()

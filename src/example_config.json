@@ -1,5 +1,5 @@
 {
-    "dataset": "news_group",
+    "dataset": "prosper_loan",
     "mode": "product",
     "gpus": [0],
     "max_threads": 1,
