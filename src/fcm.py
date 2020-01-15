@@ -376,7 +376,7 @@ class FocusedConceptMiner(nn.Module):
         return np.array(metrics)
 
     def calculate_auc(self, split, X, y, expvars):
-        if self.expvars is None:
+        if expvars is None:
             y_pred = self.predict_proba(X).cpu().detach().numpy()
         else:
             y_pred = self.predict_proba(X, expvars).cpu().detach().numpy()
