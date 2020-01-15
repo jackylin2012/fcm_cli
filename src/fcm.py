@@ -71,18 +71,26 @@ class FocusedConceptMiner(nn.Module):
         self.expvars_test = expvars_test
         self.inductive = inductive
         self.X_train = X_train
+        if torch.cuda.is_available():
+            if gpu:
+                self.device = "cuda:%d" % gpu
+            else:
+                self.device = "cuda:0"
+        else:
+            self.device = 'cpu'
+        device = torch.device(self.device)
         if self.X_train is not None:
-            self.X_train = torch.FloatTensor(self.X_train)
+            self.X_train = torch.tensor(self.X_train, dtype=torch.float32, requires_grad=False, device=device)
         assert not (self.inductive and self.X_train is None)
         self.y_train = y_train
         if self.y_train is not None:
-            self.y_train = torch.FloatTensor(self.y_train)
+            self.y_train = torch.tensor(self.y_train, dtype=torch.float32, requires_grad=False, device=device)
         self.X_test = X_test
         if self.X_test is not None:
-            self.X_test = torch.FloatTensor(self.X_test)
+            self.X_test = torch.tensor(self.X_test, dtype=torch.float32, requires_grad=False, device=device)
         self.y_test = y_test
         if self.y_test is not None:
-            self.y_test = torch.FloatTensor(self.y_test)
+            self.y_test = torch.tensor(self.y_test, dtype=torch.float32, requires_grad=False, device=device)
 
         self.train_dataset = PermutedSubsampledCorpus(doc_windows)
 
@@ -91,13 +99,12 @@ class FocusedConceptMiner(nn.Module):
         else:
             self.docweights = 1.0 / np.log(doc_lens)
             self.doc_lens = doc_lens
-        self.docweights = torch.FloatTensor(self.docweights)
+        self.docweights = torch.tensor(self.docweights, dtype=torch.float32, requires_grad=False, device=device)
 
         if expvars_train is not None:
-            self.expvars_train = torch.FloatTensor(expvars_train)
+            self.expvars_train = torch.tensor(expvars_train, dtype=torch.float32, requires_grad=False, device=device)
         if expvars_test is not None:
-            self.expvars_test = torch.FloatTensor(expvars_test)
-
+            self.expvars_test = torch.tensor(expvars_test, dtype=torch.float32, requires_grad=False, device=device)
         # word embedding
         self.embedding_i = nn.Embedding(num_embeddings=vocab_size,
                                         embedding_dim=embed_size,
@@ -170,18 +177,11 @@ class FocusedConceptMiner(nn.Module):
         wf = np.power(word_counts, BETA)  # exponent from word2vec paper
         self.word_counts = word_counts
         wf = wf / np.sum(wf)  # convert to probabilities
-        self.weights = torch.FloatTensor(wf)
+        self.weights = torch.tensor(wf, dtype=torch.float64, requires_grad=False, device=device)
         self.vocab = vocab
         # dropout
         self.dropout1 = nn.Dropout(PIVOTS_DROPOUT)
         self.dropout2 = nn.Dropout(DOC_VECS_DROPOUT)
-        if torch.cuda.is_available():
-            if gpu:
-                self.device = "cuda:%d" % gpu
-            else:
-                self.device = "cuda:0"
-        else:
-            self.device = 'cpu'
         self.multinomial = AliasMultinomial(wf, self.device)
 
     def forward(self, doc, target, contexts, labels, per_doc_loss=None):
@@ -376,7 +376,7 @@ class FocusedConceptMiner(nn.Module):
         return np.array(metrics)
 
     def calculate_auc(self, split, X, y, expvars):
-        if self.expvars_test is None:
+        if self.expvars is None:
             y_pred = self.predict_proba(X).cpu().detach().numpy()
         else:
             y_pred = self.predict_proba(X, expvars).cpu().detach().numpy()
@@ -409,7 +409,6 @@ class FocusedConceptMiner(nn.Module):
             doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
 
             if expvars is not None:
-                expvars = expvars
                 doc_topic_probs = torch.cat((doc_topic_probs, expvars), dim=1)
 
             pred_weight = torch.matmul(doc_topic_probs, self.theta)
