@@ -83,14 +83,10 @@ class FocusedConceptMiner(nn.Module):
             self.X_train = torch.tensor(self.X_train, dtype=torch.float32, requires_grad=False, device=device)
         assert not (self.inductive and self.X_train is None)
         self.y_train = y_train
-        if self.y_train is not None:
-            self.y_train = torch.tensor(self.y_train, dtype=torch.float32, requires_grad=False, device=device)
         self.X_test = X_test
         if self.X_test is not None:
             self.X_test = torch.tensor(self.X_test, dtype=torch.float32, requires_grad=False, device=device)
         self.y_test = y_test
-        if self.y_test is not None:
-            self.y_test = torch.tensor(self.y_test, dtype=torch.float32, requires_grad=False, device=device)
 
         self.train_dataset = PermutedSubsampledCorpus(doc_windows)
 
