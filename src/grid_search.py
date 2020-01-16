@@ -92,7 +92,7 @@ def training_thread(device_idx, ds, config):
                           **{"fit." + k: v for k, v in fit_params.items()},
                           "id": param_id, "run_time": run_time,
                           "total_loss": best_losses[0], "sgns_loss": best_losses[1],
-                          "diversity_loss": best_losses[2], "pred_loss": best_losses[3],
+                          "dirichlet_loss": best_losses[2],  "pred_loss": best_losses[3], "div_loss": best_losses[4],
                           "train_auc": best_aucs[0], "test_auc": best_aucs[1]}
             with lock:
                 results = results.append(new_result, ignore_index=True)
@@ -124,8 +124,8 @@ def grid_search(config_path):
     fcm_params = config["fcm_params"]
     fit_params = config["fit_params"]
 
-    results = pandas.DataFrame(columns=["id", "run_time", "total_loss", "sgns_loss", "diversity_loss",
-                                        "pred_loss", "diversity_loss", "train_auc", "test_auc"]
+    results = pandas.DataFrame(columns=["id", "run_time", "total_loss", "sgns_loss", "dirichlet_loss",
+                                        "pred_loss", "div_loss", "train_auc", "test_auc"]
                                        + ["dataset." + k for k in dataset_params.keys()]
                                        + ["fcm." + k for k in fcm_params.keys()]
                                        + ["fit." + k for k in fit_params.keys()])

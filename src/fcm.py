@@ -307,13 +307,13 @@ class FocusedConceptMiner(nn.Module):
                                                        drop_last=False)
         self.to(self.device)
         train_loss_file = open(os.path.join(self.out_dir, "train_loss.txt"), "w")
-        train_loss_file.write("total_loss, avg_sgns_loss, avg_diversity_loss, avg_pred_loss, "
-                              "avg_diversity_loss，train_auc, test_auc\n")
+        train_loss_file.write("total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss, "
+                              "avg_div_loss，train_auc, test_auc\n")
 
         # SGD generalizes better: https://arxiv.org/abs/1705.08292
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
         nwindows = len(self.train_dataset)
-        metrics = []
+        results = []
         for epoch in range(nepochs):
             total_sgns_loss = 0.0
             total_dirichlet_loss = 0.0
@@ -355,17 +355,16 @@ class FocusedConceptMiner(nn.Module):
             self.logger.info("Dirichlet loss: %.4f" % avg_dirichlet_loss)
             self.logger.info("Prediction loss: %.4f" % avg_pred_loss)
             self.logger.info("Diversity loss: %.4f" % avg_diversity_loss)
-            train_loss_file.write("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n" %
-                                  (total_loss, avg_sgns_loss, avg_diversity_loss, avg_pred_loss,
-                                   avg_diversity_loss, train_auc, test_auc))
+            metrics = (total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss,
+                       avg_diversity_loss, train_auc, test_auc)
+            train_loss_file.write("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n" % metrics)
             train_loss_file.flush()
-            metrics.append([total_loss, avg_sgns_loss, avg_diversity_loss, avg_pred_loss,
-                            avg_diversity_loss, train_auc, test_auc])
+            results.append(metrics)
             if (epoch + 1) % save_epochs == 0:
                 torch.save(self.state_dict(), os.path.join(self.out_dir, str(epoch + 1) + ".slda2vec.pytorch"))
 
         torch.save(self.state_dict(), os.path.join(self.out_dir, "slda2vec.pytorch"))
-        return np.array(metrics)
+        return np.array(results)
 
     def calculate_auc(self, split, X, y, expvars):
         if expvars is None:
