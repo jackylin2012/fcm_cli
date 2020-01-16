@@ -14,6 +14,8 @@
     },
     "fcm_params": {
         "embed_size": [200],
+        "hidden_size": [100, 200],
+        "num_layers": [1, 2],
         "nnegs": [10, 20],
         "ntopics": [7],
         "lam": [0.2, 1, 10],

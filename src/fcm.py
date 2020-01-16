@@ -24,7 +24,8 @@ np.random.seed(consts.SEED)
 class FocusedConceptMiner(nn.Module):
 
     def __init__(self, out_dir, embed_size=300, nnegs=15, ntopics=25,
-                 lam=100.0, rho=100.0, eta=1.0, word_counts=None, doc_lens=None, doc_topic_weights=None,
+                 lam=100.0, rho=100.0, eta=1.0, hidden_size=100, num_layers=1,
+                 word_counts=None, doc_lens=None, doc_topic_weights=None,
                  word_vectors=None, theta=None, gpu=None, inductive=True,
                  X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None,
                  vocab=None, expvars_train=None, expvars_test=None,
@@ -117,23 +118,19 @@ class FocusedConceptMiner(nn.Module):
 
         # embedding for per-document topic weights
         if self.inductive:
-            hidden_layer_size = consts.HIDDEN_LAYER_DIM
-            num_hidden_layers = consts.NUM_LAYERS
             weight_generator_network = []
-            if num_hidden_layers > 0:
+            if num_layers > 0:
                 # input layer
-                weight_generator_network.extend([torch.nn.Linear(vocab_size,
-                                                                 hidden_layer_size),
+                weight_generator_network.extend([torch.nn.Linear(vocab_size, hidden_size),
                                                  torch.nn.Tanh(),
                                                  torch.nn.Dropout(0.01)])
                 # hidden layers
-                for h in range(num_hidden_layers):
-                    weight_generator_network.extend([torch.nn.Linear(hidden_layer_size,
-                                                                     hidden_layer_size),
+                for h in range(num_layers):
+                    weight_generator_network.extend([torch.nn.Linear(hidden_size, hidden_size),
                                                      torch.nn.Tanh(),
                                                      torch.nn.Dropout(0.01)])
                 # output layer
-                weight_generator_network.append(torch.nn.Linear(hidden_layer_size,
+                weight_generator_network.append(torch.nn.Linear(hidden_size,
                                                                 ntopics))
             else:
                 weight_generator_network.append(torch.nn.Linear(vocab_size,
