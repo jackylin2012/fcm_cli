@@ -7,22 +7,22 @@
     "wait_time": 300,
     "out_dir": "../grid_search/run0",
     "dataset_params" : {
-        "window_size": [2, 4, 6],
-        "vocab_size": [5000, 10000, 20000],
-        "min_df": [0.01, 0.02, 0.05],
-        "max_df": [0.5, 0.7, 0.8]
+        "window_size": [2, 4],
+        "vocab_size": [5000],
+        "min_df": [0.01],
+        "max_df": [0.8]
     },
     "fcm_params": {
-        "embed_size": [20, 40],
+        "embed_size": [200],
         "nnegs": [10, 20],
-        "ntopics": [5, 15],
-        "lam": [1, 5, 10, 20],
-        "rho": [20, 40, 60, 100],
-        "eta": [1, 5, 10]
+        "ntopics": [7],
+        "lam": [0.00005, 0.0001, 0.005, 0.02],
+        "rho": [40, 100, 200, 400],
+        "eta": [0.00005, 0.0001, 0.005, 0.02]
     },
     "fit_params": {
         "lr": [0.01, 0.005],
-        "nepochs": [1],
+        "nepochs": [5],
         "batch_size": [100],
         "grad_clip": [5, 10]
     }
