@@ -429,11 +429,17 @@ class FocusedConceptMiner(nn.Module):
             dist = -np.matmul(concept_embed, np.transpose(word_embed, (1, 0)))
         else:
             dist = cdist(concept_embed, word_embed, metric=concept_metric)
-        nearest_words = np.argsort(dist, axis=1)[:, :top_k]  # indices of words with min cosine distance
+        nearest_word_idxs = np.argsort(dist, axis=1)[:, :top_k]  # indices of words with min cosine distance
+        topics = []
+        topic_file = open(os.path.join(self.out_dir, "topic_words.txt"), "w")
+
         for j in range(self.ntopics):
-            topic_words = ' '.join([self.vocab[i] for i in nearest_words[j, :]])
-            # TODO: write to result file
-            self.logger.info('topic %d: %s' % (j + 1, topic_words))
+            nearest_words = [self.vocab[i] for i in nearest_word_idxs[j, :]]
+            topics.append(nearest_words)
+            self.logger.info('topic %d: %s' % (j + 1, ' '.join(nearest_words)))
+            topic_file.write('topic %d: %s\n' % (j + 1, ' '.join(nearest_words)))
+        topic_file.close()
+        return topics
 
 
 class PermutedSubsampledCorpus(torch.utils.data.Dataset):
