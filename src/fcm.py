@@ -14,11 +14,11 @@ from scipy.stats import ortho_group
 from sklearn.metrics import roc_auc_score
 from torch.nn import Parameter
 
-import constants
+import consts
 from toolbox.alias_multinomial import AliasMultinomial
 
-torch.manual_seed(constants.SEED)
-np.random.seed(constants.SEED)
+torch.manual_seed(consts.SEED)
+np.random.seed(consts.SEED)
 
 
 class FocusedConceptMiner(nn.Module):
@@ -114,8 +114,8 @@ class FocusedConceptMiner(nn.Module):
 
         # embedding for per-document topic weights
         if self.inductive:
-            hidden_layer_size = constants.HIDDEN_LAYER_DIM
-            num_hidden_layers = constants.NUM_LAYERS
+            hidden_layer_size = consts.HIDDEN_LAYER_DIM
+            num_hidden_layers = consts.NUM_LAYERS
             weight_generator_network = []
             if num_hidden_layers > 0:
                 # input layer
@@ -166,14 +166,14 @@ class FocusedConceptMiner(nn.Module):
         self.theta.requires_grad = True
 
         # weights for negative sampling
-        wf = np.power(word_counts, constants.BETA)  # exponent from word2vec paper
+        wf = np.power(word_counts, consts.BETA)  # exponent from word2vec paper
         self.word_counts = word_counts
         wf = wf / np.sum(wf)  # convert to probabilities
         self.weights = torch.tensor(wf, dtype=torch.float64, requires_grad=False, device=device)
         self.vocab = vocab
         # dropout
-        self.dropout1 = nn.Dropout(constants.PIVOTS_DROPOUT)
-        self.dropout2 = nn.Dropout(constants.DOC_VECS_DROPOUT)
+        self.dropout1 = nn.Dropout(consts.PIVOTS_DROPOUT)
+        self.dropout2 = nn.Dropout(consts.DOC_VECS_DROPOUT)
         self.multinomial = AliasMultinomial(wf, self.device)
 
     def forward(self, doc, target, contexts, labels, per_doc_loss=None):
@@ -224,8 +224,8 @@ class FocusedConceptMiner(nn.Module):
         context_vectors = context_vectors.unsqueeze(2)  # column vector, batch needed for bmm
 
         # compose negative sampling loss
-        oloss = torch.bmm(ovectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=constants.EPS).log().sum(1)
-        nloss = torch.bmm(nvectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=constants.EPS).log().sum(1)
+        oloss = torch.bmm(ovectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
+        nloss = torch.bmm(nvectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
         negative_sampling_loss = (oloss + nloss).neg()
         negative_sampling_loss *= w  # downweight loss for each document
         if per_doc_loss is not None:
@@ -234,7 +234,7 @@ class FocusedConceptMiner(nn.Module):
 
         # compose dirichlet loss
         doc_topic_probs = doc_topic_probs.squeeze(dim=1)  # (batches, T)
-        doc_topic_probs = doc_topic_probs.clamp(min=constants.EPS)
+        doc_topic_probs = doc_topic_probs.clamp(min=consts.EPS)
         dirichlet_loss = doc_topic_probs.log().sum(1)  # (batches, 1)
         dirichlet_loss *= self.lam * (1.0 - self.alpha)
         dirichlet_loss *= w  # downweight loss for each document
@@ -265,8 +265,8 @@ class FocusedConceptMiner(nn.Module):
         #   3. Loss = (\sum_i \sum_j log(sigmoid(T_i, T_j)) - \sum_i log(sigmoid(T_i, T_i)) )
         #           = \sum_i \sum_{j > i} log(sigmoid(T_i, T_j))
         div_loss = torch.mm(self.embedding_t,
-                            torch.t(self.embedding_t)).neg().sigmoid().clamp(min=constants.EPS).log().sum() \
-                   - (self.embedding_t * self.embedding_t).neg().sigmoid().clamp(min=constants.EPS).log().sum()
+                            torch.t(self.embedding_t)).neg().sigmoid().clamp(min=consts.EPS).log().sum() \
+                   - (self.embedding_t * self.embedding_t).neg().sigmoid().clamp(min=consts.EPS).log().sum()
         div_loss /= 2.0  # taking care of duplicate pairs T_i, T_j and T_j, T_i
         div_loss = div_loss.repeat(batch_size)
         div_loss *= w  # downweight by document lengths
