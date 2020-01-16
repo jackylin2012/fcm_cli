@@ -5,24 +5,24 @@
     "max_threads": 1,
     "max_mem": 5e6,
     "wait_time": 300,
-    "out_dir": "../grid_search/run0",
+    "out_dir": "../grid_search/prosper",
     "dataset_params" : {
-        "window_size": [2, 4, 6],
-        "vocab_size": [5000, 10000, 20000],
+        "window_size": [2, 4],
+        "vocab_size": [5000],
         "min_df": [0.01, 0.02, 0.05],
         "max_df": [0.5, 0.7, 0.8]
     },
     "fcm_params": {
         "embed_size": [20, 40],
         "nnegs": [10, 20],
-        "ntopics": [5, 15],
+        "ntopics": [5, 7, 15],
         "lam": [1, 5, 10, 20],
         "rho": [20, 40, 60, 100],
         "eta": [1, 5, 10]
     },
     "fit_params": {
         "lr": [0.01, 0.005],
-        "nepochs": [1],
+        "nepochs": [10],
         "batch_size": [100],
         "grad_clip": [5, 10]
     }

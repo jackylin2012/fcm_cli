@@ -15,7 +15,7 @@ from sklearn.metrics import roc_auc_score
 from torch.nn import Parameter
 
 from constants import *
-from util.alias_multinomial import AliasMultinomial
+from toolbox.alias_multinomial import AliasMultinomial
 
 torch.manual_seed(SEED)
 np.random.seed(SEED)
@@ -70,7 +70,6 @@ class FocusedConceptMiner(nn.Module):
         self.expvars_train = expvars_train
         self.expvars_test = expvars_test
         self.inductive = inductive
-        self.X_train = X_train
         if torch.cuda.is_available():
             if gpu:
                 self.device = "cuda:%d" % gpu
@@ -79,13 +78,10 @@ class FocusedConceptMiner(nn.Module):
         else:
             self.device = 'cpu'
         device = torch.device(self.device)
-        if self.X_train is not None:
-            self.X_train = torch.tensor(self.X_train, dtype=torch.float32, requires_grad=False, device=device)
+        self.X_train = torch.tensor(X_train, dtype=torch.float32, requires_grad=False, device=device)
         assert not (self.inductive and self.X_train is None)
         self.y_train = y_train
-        self.X_test = X_test
-        if self.X_test is not None:
-            self.X_test = torch.tensor(self.X_test, dtype=torch.float32, requires_grad=False, device=device)
+        self.X_test = torch.tensor(X_test, dtype=torch.float32, requires_grad=False, device=device)
         self.y_test = y_test
 
         self.train_dataset = PermutedSubsampledCorpus(doc_windows)

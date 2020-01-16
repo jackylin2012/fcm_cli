@@ -5,7 +5,7 @@ import sys
 import click
 
 from fcm import FocusedConceptMiner
-from util.helper_functions import get_dataset
+from toolbox.helper_functions import get_dataset
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])

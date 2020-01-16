@@ -13,7 +13,7 @@ import pandas
 import torch
 
 from fcm import FocusedConceptMiner
-from util.helper_functions import get_dataset
+from toolbox.helper_functions import get_dataset
 import psutil
 
 random.seed(0)
@@ -26,10 +26,10 @@ lock = threading.Lock()
 
 
 def available_memory(device):
-    if torch.cuda.is_available():
-        return torch.cuda.get_device_properties(torch.device(device)).total_memory - torch.cuda.memory_allocated(device)
-    else:
+    if device == "cpu" or not torch.cuda.is_available():
         return psutil.virtual_memory()[4]
+    else:
+        return torch.cuda.get_device_properties(torch.device(device)).total_memory - torch.cuda.memory_allocated(device)
 
 
 def training_thread(device_idx, ds, config):
