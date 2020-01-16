@@ -106,10 +106,13 @@ class FocusedConceptMiner(nn.Module):
 
         # regular embedding for topics (never indexed so not sparse)
         self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embed_size)[0:ntopics]))
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
         if file_log:
-            logging.basicConfig(filename="fcm.log", format='%(asctime)s : %(levelname)s : %(message)s')
+            logging.basicConfig(filename=os.path.join(out_dir, "train.log"),
+                                format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
         else:
-            logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s')
+            logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
         self.logger = logging.getLogger(__name__)
 
         # embedding for per-document topic weights
