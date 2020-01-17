@@ -74,22 +74,13 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
     # calculate document lengths again after excluding out of vocabulary word
     doc_lens = np.array([len(doc) for doc in encoded_doc_train])
     valid_docs = doc_lens >= window_size + 1
-    tokenized_doc_train = filter_list(tokenized_doc_train, valid_docs)
     X_train = X_train[valid_docs]
     if expvars_train is not None:
         expvars_train = expvars_train[valid_docs]
+    doc_lens = doc_lens[valid_docs]
     wordcounts_train = X_train.sum(axis=0)
     # only keep words with count > 0 in the filtered training set
-    valid_words = wordcounts_train > 0
-    vocab = filter_list(vectorizer.get_feature_names(), valid_words)
-    valid_vocab_dict = {w: i for i, w in enumerate(vocab)}
-    # recalculate the encoded documents with the new vocab
-    encoded_doc_train = [[valid_vocab_dict[word] for word in doc
-                          if word in valid_vocab_dict]
-                         for doc in tokenized_doc_train]
-    doc_lens = np.array([len(doc) for doc in encoded_doc_train])
-    X_train = X_train[:, valid_words]
-    X_test = X_test[:, valid_words]
+    vocab = vectorizer.get_feature_names()
 
     y_train = np.array([y_train[i] for i in range(len(valid_docs)) if valid_docs[i]])
     doc_windows_train = get_windows(encoded_doc_train, y_train, window_size=window_size)
