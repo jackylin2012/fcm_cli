@@ -329,7 +329,7 @@ class FocusedConceptMiner(nn.Module):
 
                 # gradient clipping
                 for p in self.parameters():
-                    if p.requires_grad:
+                    if p.requires_grad and p.grad is not None:
                         p.grad = p.grad.clamp(min=-grad_clip, max=grad_clip)
 
                 optimizer.step()
