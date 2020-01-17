@@ -277,7 +277,8 @@ class FocusedConceptMiner(nn.Module):
 
         return negative_sampling_loss, dirichlet_loss, pred_loss, div_loss
 
-    def fit(self, lr=0.01, nepochs=200, batch_size=10, weight_decay=0.01, grad_clip=5, save_epochs=10):
+    def fit(self, lr=0.01, nepochs=200, pred_only_epochs=20,
+            batch_size=10, weight_decay=0.01, grad_clip=5, save_epochs=10):
         """
         Train the FCM model
 
@@ -287,6 +288,8 @@ class FocusedConceptMiner(nn.Module):
             Learning rate
         nepochs : int
             Number of training epochs
+        pred_only_epochs : int
+            Number of epochs optimized with prediction loss only
         batch_size : int
             Batch size
         weight_decay : float
@@ -322,8 +325,18 @@ class FocusedConceptMiner(nn.Module):
 
             self.train()
             for batch in train_dataloader:
-                loss, sgns_loss, dirichlet_loss, pred_loss, div_loss = self.calculate_loss(epoch, batch)
+                batch = autograd.Variable(torch.LongTensor(batch))
+                batch = batch.to(self.device)
+                doc = batch[:, 0]
+                iword = batch[:, 1]
+                owords = batch[:, 2:-1]
+                labels = batch[:, -1].float()
 
+                sgns_loss, dirichlet_loss, pred_loss, div_loss = self(doc, iword, owords, labels)
+                if epoch < pred_only_epochs:
+                    loss = pred_loss
+                else:
+                    loss = sgns_loss + dirichlet_loss + pred_loss + div_loss
                 optimizer.zero_grad()
                 loss.backward()
 
@@ -376,22 +389,6 @@ class FocusedConceptMiner(nn.Module):
         auc = roc_auc_score(y, y_pred)
         self.logger.info("%s AUC: %.4f" % (split, auc))
         return auc
-
-    def calculate_loss(self, epoch, batch, per_doc_loss=None):
-        batch = autograd.Variable(torch.LongTensor(batch))
-        batch = batch.to(self.device)
-        doc = batch[:, 0]
-        iword = batch[:, 1]
-        owords = batch[:, 2:-1]
-        labels = batch[:, -1].float()
-
-        sgns_loss, dirichlet_loss, pred_loss, div_loss = self(doc, iword, owords,
-                                                              labels, per_doc_loss)
-        if epoch < 5:
-            loss = pred_loss
-        else:
-            loss = sgns_loss + dirichlet_loss + pred_loss + div_loss
-        return loss, sgns_loss, dirichlet_loss, pred_loss, div_loss
 
     # TODO: only applicable to inductive, figure out what to do for non-inductive
     def predict_proba(self, count_matrix, expvars=None):
