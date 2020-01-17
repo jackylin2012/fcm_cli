@@ -322,7 +322,7 @@ class FocusedConceptMiner(nn.Module):
 
             self.train()
             for batch in train_dataloader:
-                loss, sgns_loss, dirichlet_loss, pred_loss, div_loss = self.calculate_loss(batch)
+                loss, sgns_loss, dirichlet_loss, pred_loss, div_loss = self.calculate_loss(epoch, batch)
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -375,7 +375,7 @@ class FocusedConceptMiner(nn.Module):
         self.logger.info("%s AUC: %.4f" % (split, auc))
         return auc
 
-    def calculate_loss(self, batch, per_doc_loss=None):
+    def calculate_loss(self, epoch, batch, per_doc_loss=None):
         batch = autograd.Variable(torch.LongTensor(batch))
         batch = batch.to(self.device)
         doc = batch[:, 0]
@@ -385,7 +385,10 @@ class FocusedConceptMiner(nn.Module):
 
         sgns_loss, dirichlet_loss, pred_loss, div_loss = self(doc, iword, owords,
                                                               labels, per_doc_loss)
-        loss = sgns_loss + dirichlet_loss + pred_loss + div_loss
+        if epoch < 5:
+            loss = pred_loss
+        else:
+            loss = sgns_loss + dirichlet_loss + pred_loss + div_loss
         return loss, sgns_loss, dirichlet_loss, pred_loss, div_loss
 
     # TODO: only applicable to inductive, figure out what to do for non-inductive

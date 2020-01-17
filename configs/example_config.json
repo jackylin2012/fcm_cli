@@ -5,7 +5,7 @@
     "max_threads": 1,
     "max_mem": 5e6,
     "wait_time": 300,
-    "out_dir": "../grid_search/run0",
+    "out_dir": "../grid_search/run1",
     "dataset_params" : {
         "window_size": [2, 4],
         "vocab_size": [5000],
@@ -24,7 +24,7 @@
     },
     "fit_params": {
         "lr": [0.01],
-        "nepochs": [5],
+        "nepochs": [10],
         "batch_size": [200],
         "grad_clip": [5, 10]
     }

@@ -73,7 +73,7 @@ def training_thread(device_idx, ds, config):
             else:
                 fc_miner = FocusedConceptMiner(current_out_dir, file_log=True, **fcm_params, **data_attr)
             metrics = fc_miner.fit(**fit_params)
-            fc_miner.visualize()
+            # fc_miner.visualize()
             fc_miner.get_concept_words(top_k, concept_metric)
             end = time.perf_counter()
             run_time = end - start
