@@ -198,7 +198,8 @@ class FocusedConceptMiner(nn.Module):
             doc_topic_weights = self.doc_topic_weights(self.X_train[doc])
         else:
             doc_topic_weights = self.doc_topic_weights(doc)
-        doc_topic_probs = F.softmax(doc_topic_weights, dim=1)
+        # doc_topic_probs = F.softmax(doc_topic_weights, dim=1)
+        doc_topic_probs = doc_topic_weights
         doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
         topic_embeddings = self.embedding_t.expand(batch_size, -1, -1)  # (batches, T, E)
         doc_vector = torch.bmm(doc_topic_probs, topic_embeddings)  # (batches, 1, E)
@@ -398,7 +399,8 @@ class FocusedConceptMiner(nn.Module):
                 doc_topic_weights = self.doc_topic_weights(count_matrix)
             else:
                 doc_topic_weights = self.doc_topic_weights.weight.data
-            doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
+            # doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
+            doc_topic_probs = doc_topic_weights
             ones = torch.ones((batch_size, 1)).to(self.device)
             doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
 
