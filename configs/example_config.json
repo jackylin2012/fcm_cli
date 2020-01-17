@@ -1,6 +1,6 @@
 {
     "dataset": "prosper_loan",
-    "mode": "product",
+    "mode": "hamming",
     "gpus": [0],
     "max_threads": 1,
     "max_mem": 5e6,
@@ -19,9 +19,9 @@
         "num_layers": [1, 2],
         "nnegs": [10, 20],
         "ntopics": [7],
-        "lam": [0.2, 1, 10],
-        "rho": [10, 40],
-        "eta": [0.2, 1, 10]
+        "lam": [1, 10, 20],
+        "rho": [60, 100],
+        "eta": [1, 10, 20]
     },
     "fit_params": {
         "lr": [0.01],
