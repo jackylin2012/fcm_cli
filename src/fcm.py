@@ -198,7 +198,7 @@ class FocusedConceptMiner(nn.Module):
             doc_topic_weights = self.doc_topic_weights(self.X_train[doc])
         else:
             doc_topic_weights = self.doc_topic_weights(doc)
-        doc_topic_probs = doc_topic_weights
+        doc_topic_probs = F.softmax(doc_topic_weights, dim=1)
         doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
         topic_embeddings = self.embedding_t.expand(batch_size, -1, -1)  # (batches, T, E)
         doc_vector = torch.bmm(doc_topic_probs, topic_embeddings)  # (batches, 1, E)
@@ -342,7 +342,9 @@ class FocusedConceptMiner(nn.Module):
                 total_diversity_loss += div_loss.data * nsamples
 
             train_auc = self.calculate_auc("Train", self.X_train, self.y_train, self.expvars_train)
-            test_auc = self.calculate_auc("Test", self.X_test, self.y_test, self.expvars_test)
+            test_auc = 0.0
+            if self.inductive:
+                test_auc = self.calculate_auc("Test", self.X_test, self.y_test, self.expvars_test)
 
             total_loss = (total_sgns_loss + total_dirichlet_loss + total_pred_loss + total_diversity_loss) / nwindows
             avg_sgns_loss = total_sgns_loss / nwindows
@@ -393,12 +395,13 @@ class FocusedConceptMiner(nn.Module):
 
     # TODO: only applicable to inductive, figure out what to do for non-inductive
     def predict_proba(self, count_matrix, expvars=None):
-        assert self.inductive
         with torch.no_grad():
             batch_size = count_matrix.size(0)
-            doc_topic_weights = self.doc_topic_weights(count_matrix)
+            if self.inductive:
+                doc_topic_weights = self.doc_topic_weights(count_matrix)
+            else:
+                doc_topic_weights = self.doc_topic_weights.weight.data
             doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
-
             ones = torch.ones((batch_size, 1)).to(self.device)
             doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
 
