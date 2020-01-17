@@ -14,10 +14,10 @@
         "max_df": [0.8]
     },
     "fcm_params": {
-        "inductive": [false],
+        "inductive": [true],
         "embed_size": [200],
-        "hidden_size": [100, 200],
-        "num_layers": [1, 2],
+        "hidden_size": [100],
+        "num_layers": [1],
         "nnegs": [10, 20],
         "ntopics": [7],
         "lam": [1, 10, 20],
@@ -26,9 +26,9 @@
     },
     "fit_params": {
         "lr": [0.01],
-        "nepochs": [50],
-        "pred_only_epochs": [20],
+        "nepochs": [12],
+        "pred_only_epochs": [6],
         "batch_size": [200],
-        "grad_clip": [100]
+        "grad_clip": [1000]
     }
 }
