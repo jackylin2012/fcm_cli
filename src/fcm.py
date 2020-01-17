@@ -364,7 +364,7 @@ class FocusedConceptMiner(nn.Module):
             avg_sgns_loss = total_sgns_loss / nwindows
             avg_dirichlet_loss = total_dirichlet_loss / nwindows
             avg_pred_loss = total_pred_loss / nwindows
-            avg_diversity_loss = total_dirichlet_loss / nwindows
+            avg_diversity_loss = total_diversity_loss / nwindows
             self.logger.info("epoch %d/%d:" % (epoch, nepochs))
             self.logger.info("Total loss: %.4f" % total_loss)
             self.logger.info("SGNS loss: %.4f" % avg_sgns_loss)
