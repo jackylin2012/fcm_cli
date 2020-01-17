@@ -74,6 +74,7 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
     # calculate document lengths again after excluding out of vocabulary word
     doc_lens = np.array([len(doc) for doc in encoded_doc_train])
     valid_docs = doc_lens >= window_size + 1
+    encoded_doc_train = filter_list(encoded_doc_train, valid_docs)
     X_train = X_train[valid_docs]
     if expvars_train is not None:
         expvars_train = expvars_train[valid_docs]
