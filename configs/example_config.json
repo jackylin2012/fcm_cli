@@ -1,15 +1,16 @@
 {
     "dataset": "prosper_loan",
-    "mode": "hamming",
+    "mode": "product",
     "gpus": [0],
     "max_threads": 1,
     "max_mem": 5e6,
     "wait_time": 300,
     "out_dir": "../grid_search/run2",
+    "concept_metric" : "hamming",
     "dataset_params" : {
         "window_size": [2, 4],
         "vocab_size": [5000],
-        "min_df": [0.01],
+        "min_df": [0.001],
         "max_df": [0.8]
     },
     "fcm_params": {
