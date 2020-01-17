@@ -14,7 +14,6 @@
     },
     "fcm_params": {
         "inductive": [false],
-        "pred_only_epochs": [30],
         "embed_size": [200],
         "hidden_size": [100, 200],
         "num_layers": [1, 2],
@@ -27,6 +26,7 @@
     "fit_params": {
         "lr": [0.01],
         "nepochs": [50],
+        "pred_only_epochs": [20],
         "batch_size": [200],
         "grad_clip": [100]
     }
