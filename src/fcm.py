@@ -24,7 +24,7 @@ np.random.seed(consts.SEED)
 class FocusedConceptMiner(nn.Module):
 
     def __init__(self, out_dir, embed_size=300, nnegs=15, ntopics=25,
-                 lam=100.0, rho=100.0, eta=1.0, hidden_size=100, num_layers=1,
+                 lam=100.0, rho=100.0, eta=1.0, hidden_size=100, num_layers=1, inductive_dropout=0.01,
                  word_counts=None, doc_lens=None, doc_topic_weights=None,
                  word_vectors=None, theta=None, gpu=None, inductive=True,
                  X_test=None, y_test=None, X_train=None, y_train=None, doc_windows=None,
@@ -104,6 +104,8 @@ class FocusedConceptMiner(nn.Module):
                                         sparse=False)
         if word_vectors is not None:
             self.embedding_i.weight.data = torch.FloatTensor(word_vectors)
+        else:
+            torch.nn.init.kaiming_normal_(self.embedding_i.weight)
 
         # regular embedding for topics (never indexed so not sparse)
         self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embed_size)[0:ntopics]))
@@ -123,18 +125,22 @@ class FocusedConceptMiner(nn.Module):
                 # input layer
                 weight_generator_network.extend([torch.nn.Linear(vocab_size, hidden_size),
                                                  torch.nn.Tanh(),
-                                                 torch.nn.Dropout(0.01)])
+                                                 torch.nn.Dropout(inductive_dropout)])
                 # hidden layers
                 for h in range(num_layers):
                     weight_generator_network.extend([torch.nn.Linear(hidden_size, hidden_size),
                                                      torch.nn.Tanh(),
-                                                     torch.nn.Dropout(0.01)])
+                                                     torch.nn.Dropout(inductive_dropout)])
                 # output layer
                 weight_generator_network.append(torch.nn.Linear(hidden_size,
                                                                 ntopics))
             else:
                 weight_generator_network.append(torch.nn.Linear(vocab_size,
                                                                 ntopics))
+            for m in weight_generator_network:
+                if type(m) == torch.nn.Linear:
+                    torch.nn.init.normal_(m.weight)
+                    torch.nn.init.normal_(m.bias)
             self.doc_topic_weights = torch.nn.Sequential(*weight_generator_network)
             # self.doc_topic_weights = nn.Linear(vocab_size, ntopics)
         else:
@@ -143,6 +149,8 @@ class FocusedConceptMiner(nn.Module):
                                                   sparse=False)
             if doc_topic_weights is not None:
                 self.doc_topic_weights.weight.data = torch.FloatTensor(doc_topic_weights)
+            else:
+                torch.nn.init.kaiming_normal_(self.doc_topic_weights.weight)
 
         # explanatory variables
         if expvars_train is not None:
@@ -158,6 +166,7 @@ class FocusedConceptMiner(nn.Module):
                 self.theta = Parameter(torch.FloatTensor(theta))
             else:
                 self.theta = Parameter(torch.FloatTensor(ntopics + 1))  # + 1 for bias
+        torch.nn.init.normal_(self.theta)
 
         # enable gradients (True by default, just confirming)
         self.embedding_i.weight.requires_grad = True
@@ -255,6 +264,9 @@ class FocusedConceptMiner(nn.Module):
         pred_weight = torch.matmul(doc_topic_probs, self.theta)
         pred_loss = F.binary_cross_entropy_with_logits(pred_weight, labels,
                                                        weight=w, reduction='none')
+        if torch.isnan(pred_loss).sum() > 0:
+            import pdb
+            pdb.set_trace()
         pred_loss *= self.rho
         if per_doc_loss is not None:
             per_doc_loss[doc] += pred_loss.data
@@ -309,6 +321,7 @@ class FocusedConceptMiner(nn.Module):
         train_dataloader = torch.utils.data.DataLoader(self.train_dataset, batch_size, shuffle=True,
                                                        num_workers=4, pin_memory=True,
                                                        drop_last=False)
+
         self.to(self.device)
         train_loss_file = open(os.path.join(self.out_dir, "train_loss.txt"), "w")
         train_loss_file.write("total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss, "
