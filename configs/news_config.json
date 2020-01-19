@@ -1,0 +1,33 @@
+{
+    "dataset": "news_group",
+    "mode": "product",
+    "gpus": [0],
+    "max_threads": 1,
+    "max_mem": 5e6,
+    "wait_time": 300,
+    "out_dir": "../grid_search/news/run0",
+    "dataset_params" : {
+        "window_size": [4],
+        "min_df": [0.01],
+        "max_df": [0.8]
+    },
+    "fcm_params": {
+        "inductive": [true],
+        "inductive_dropout": [0.01],
+        "embed_size": [50],
+        "hidden_size": [100],
+        "num_layers": [1],
+        "nnegs": [15],
+        "ntopics": [2],
+        "lam": [10],
+        "rho": [1000],
+        "eta": [1000]
+    },
+    "fit_params": {
+        "lr": [0.01],
+        "nepochs": [30],
+        "pred_only_epochs": [0],
+        "batch_size": [200],
+        "grad_clip": [1024]
+    }
+}
