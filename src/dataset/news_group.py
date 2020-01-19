@@ -25,7 +25,6 @@ class NewsDataset(BaseDataset):
 
     def load_data(self, params):
         window_size = params["window_size"]  # context window size
-        vocab_size = params["vocab_size"]  # max vocabulary size
         min_df = params.get("min_df", MIN_DF)  # min document frequency of vocabulary, defaults to MIN_DF
         max_df = params.get("max_df", MAX_DF)  # max document frequency of vocabulary, defaults to MAX_DF
         # TODO: add override flag
@@ -34,7 +33,7 @@ class NewsDataset(BaseDataset):
             NewsDataset.data = pickle.load(open(file_name, "rb"))
             return NewsDataset.data
 
-        vectorizer = CountVectorizer(min_df=min_df, max_df=max_df, max_features=vocab_size)
+        vectorizer = CountVectorizer(min_df=min_df, max_df=max_df)
         X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, _ = \
             encode_documents(vectorizer, window_size, self.doc_train, self.y_train, self.doc_test)
 
