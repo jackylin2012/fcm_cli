@@ -57,35 +57,31 @@ def filter_list(original, include):
 
 def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expvars_train=None):
     analyze = vectorizer.build_analyzer()
-    tokenized_doc_train = [analyze(d) for d in doc_train]
-    # only keep documents with length longer than the window size
-    doc_lens = np.array([len(d) for d in tokenized_doc_train])
-    valid_docs = doc_lens >= window_size + 1
-    if expvars_train is not None:
-        expvars_train = expvars_train[valid_docs]
-    doc_train = filter_list(doc_train, valid_docs)
-    tokenized_doc_train = filter_list(tokenized_doc_train, valid_docs)
     X_train = vectorizer.fit_transform(doc_train).toarray()
-    X_test = vectorizer.transform(doc_test).toarray()
-    # only keep words included in the vectorizer's vocabulary
-    encoded_doc_train = [[vectorizer.vocabulary_.get(word) for word in doc
-                          if vectorizer.vocabulary_.get(word) is not None]
-                         for doc in tokenized_doc_train]
-    # calculate document lengths again after excluding out of vocabulary word
-    doc_lens = np.array([len(doc) for doc in encoded_doc_train])
-    valid_docs = doc_lens >= window_size + 1
-    encoded_doc_train = filter_list(encoded_doc_train, valid_docs)
+    document_lengths_train = X_train.sum(axis=1)
+    valid_docs = document_lengths_train >= window_size + 1
+    document_lengths_train = document_lengths_train[valid_docs]
+    encoded_documents_train = [[vectorizer.vocabulary_.get(word)
+                                for word in analyze(document)
+                                if vectorizer.vocabulary_.get(word) is not None]
+                               for document in doc_train]
+    encoded_documents_train = filter_list(encoded_documents_train, valid_docs)
     X_train = X_train[valid_docs]
-    if expvars_train is not None:
-        expvars_train = expvars_train[valid_docs]
-    doc_lens = doc_lens[valid_docs]
-    wordcounts_train = X_train.sum(axis=0)
-    # only keep words with count > 0 in the filtered training set
-    vocab = vectorizer.get_feature_names()
+    y_train = np.array(y_train)[valid_docs]
 
-    y_train = np.array([y_train[i] for i in range(len(valid_docs)) if valid_docs[i]])
-    doc_windows_train = get_windows(encoded_doc_train, y_train, window_size=window_size)
-    return X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, expvars_train
+    # document_lengths_test = [len(d) for d in encoded_documents_test]
+    # documents_test = [d for d, l in zip(documents_test, document_lengths_test) if l >= window_size + 1]
+    # y_test = np.array([y for y, l in zip(y_test, document_lengths_test) if l >= window_size + 1])
+    # %%
+    print(y_train.shape)
+    # %%
+    X_test = vectorizer.transform(doc_test).toarray()
+    print(X_train.shape)
+    print(X_test.shape)
+    # %%
+    doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
+    wordcounts_train = X_train.sum(axis=0)
+    return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vectorizer.get_feature_names, doc_windows_train, expvars_train
 
 
 def get_windows(encoded_docs, labels, window_size):
