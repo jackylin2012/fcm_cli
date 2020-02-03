@@ -152,21 +152,17 @@ class FocusedConceptMiner(nn.Module):
             else:
                 torch.nn.init.kaiming_normal_(self.doc_topic_weights.weight)
 
+        if theta is not None:
+            self.theta = Parameter(torch.FloatTensor(theta))
         # explanatory variables
-        if expvars_train is not None:
-            # TODO: add assert shape
-            nexpvars = expvars_train.shape[1]
-            self.theta = Parameter(torch.FloatTensor(ntopics + nexpvars + 1))  # +1 for bias
-            if theta is not None:
-                nvars = theta.shape[1]  # 1 + ntopics
-                self.theta.data[:nvars] = torch.FloatTensor(theta)
         else:
-
-            if theta is not None:
-                self.theta = Parameter(torch.FloatTensor(theta))
+            if expvars_train is not None:
+                # TODO: add assert shape
+                nexpvars = expvars_train.shape[1]
+                self.theta = Parameter(torch.FloatTensor(ntopics + nexpvars + 1))  # + 1 for bias
             else:
                 self.theta = Parameter(torch.FloatTensor(ntopics + 1))  # + 1 for bias
-        torch.nn.init.normal_(self.theta)
+            torch.nn.init.normal_(self.theta)
 
         # enable gradients (True by default, just confirming)
         self.embedding_i.weight.requires_grad = True
@@ -178,7 +174,7 @@ class FocusedConceptMiner(nn.Module):
         wf = np.power(word_counts, consts.BETA)  # exponent from word2vec paper
         self.word_counts = word_counts
         wf = wf / np.sum(wf)  # convert to probabilities
-        self.weights = torch.tensor(wf, dtype=torch.float64, requires_grad=False, device=device)
+        self.weights = torch.tensor(wf, dtype=torch.float32, requires_grad=False, device=device)
         self.vocab = vocab
         # dropout
         self.dropout1 = nn.Dropout(consts.PIVOTS_DROPOUT)
@@ -207,8 +203,7 @@ class FocusedConceptMiner(nn.Module):
             doc_topic_weights = self.doc_topic_weights(self.X_train[doc])
         else:
             doc_topic_weights = self.doc_topic_weights(doc)
-        # doc_topic_probs = F.softmax(doc_topic_weights, dim=1)
-        doc_topic_probs = doc_topic_weights
+        doc_topic_probs = F.softmax(doc_topic_weights, dim=1)
         doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
         topic_embeddings = self.embedding_t.expand(batch_size, -1, -1)  # (batches, T, E)
         doc_vector = torch.bmm(doc_topic_probs, topic_embeddings)  # (batches, 1, E)
@@ -225,13 +220,13 @@ class FocusedConceptMiner(nn.Module):
             nwords = autograd.Variable(nwords).view(batch_size, window_size * self.nnegs)
 
         # compute word vectors
-        ivectors = self.dropout1(self.embedding_i(target))  # column vector
+        ivectors = self.dropout1(self.embedding_i(target))  # (batches, E)
         ovectors = self.embedding_i(contexts)  # (batches, window_size, E)
         nvectors = self.embedding_i(nwords).neg()  # row vector
 
         # construct "context" vector defined by lda2vec
         context_vectors = doc_vector + ivectors
-        context_vectors = context_vectors.unsqueeze(2)  # column vector, batch needed for bmm
+        context_vectors = context_vectors.unsqueeze(2)  # (batches, E, 1)
 
         # compose negative sampling loss
         oloss = torch.bmm(ovectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
@@ -396,15 +391,11 @@ class FocusedConceptMiner(nn.Module):
         return np.array(results)
 
     def calculate_auc(self, split, X, y, expvars):
-        if expvars is None:
-            y_pred = self.predict_proba(X).cpu().detach().numpy()
-        else:
-            y_pred = self.predict_proba(X, expvars).cpu().detach().numpy()
+        y_pred = self.predict_proba(X, expvars).cpu().detach().numpy()
         auc = roc_auc_score(y, y_pred)
         self.logger.info("%s AUC: %.4f" % (split, auc))
         return auc
 
-    # TODO: only applicable to inductive, figure out what to do for non-inductive
     def predict_proba(self, count_matrix, expvars=None):
         with torch.no_grad():
             batch_size = count_matrix.size(0)
@@ -412,8 +403,7 @@ class FocusedConceptMiner(nn.Module):
                 doc_topic_weights = self.doc_topic_weights(count_matrix)
             else:
                 doc_topic_weights = self.doc_topic_weights.weight.data
-            # doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
-            doc_topic_probs = doc_topic_weights
+            doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
             ones = torch.ones((batch_size, 1)).to(self.device)
             doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
 

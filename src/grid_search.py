@@ -31,7 +31,7 @@ def available_memory(device):
     else:
         return torch.cuda.get_device_properties(torch.device(device)).total_memory - torch.cuda.memory_allocated(device)
 
-
+#TODO: multithread result file conflict
 def training_thread(device_idx, ds, config):
     global results
     max_mem = config["max_mem"]
@@ -48,18 +48,17 @@ def training_thread(device_idx, ds, config):
             device_idx = (device_idx + 1) % len(devices)
         device = devices[device_idx]
         dataset_params, fcm_params, fit_params = queue.get_nowait()
-        param_id = hashlib.md5(json.dumps({"dataset": dataset_params, "fcm": fcm_params, "fit": fit_params},
+        params = {"dataset": dataset_params, "fcm": fcm_params, "fit": fit_params}
+        param_id = hashlib.md5(json.dumps(params,
                                           sort_keys=True).encode('utf-8')).hexdigest()
         try:
             with lock:
                 current_out_dir = os.path.join(out_dir, param_id)
                 if os.path.exists(current_out_dir):
+                    #TODO: better handling
                     print("id {} has already been run, skip...".format(param_id))
                     continue
                 os.makedirs(current_out_dir)
-                params = {**{"dataset." + k: v for k, v in dataset_params.items()},
-                          **{"fcm." + k: v for k, v in fcm_params.items()},
-                          **{"fit." + k: v for k, v in fit_params.items()}}
                 with open(os.path.join(current_out_dir, 'params.json'), 'w') as f:
                     json.dump(params, f, sort_keys=True)
                 data_attr = ds.load_data(dataset_params)

@@ -66,22 +66,15 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
                                 if vectorizer.vocabulary_.get(word) is not None]
                                for document in doc_train]
     encoded_documents_train = filter_list(encoded_documents_train, valid_docs)
+    doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
     X_train = X_train[valid_docs]
     y_train = np.array(y_train)[valid_docs]
-
-    # document_lengths_test = [len(d) for d in encoded_documents_test]
-    # documents_test = [d for d, l in zip(documents_test, document_lengths_test) if l >= window_size + 1]
-    # y_test = np.array([y for y, l in zip(y_test, document_lengths_test) if l >= window_size + 1])
-    # %%
-    print(y_train.shape)
-    # %%
     X_test = vectorizer.transform(doc_test).toarray()
-    print(X_train.shape)
-    print(X_test.shape)
-    # %%
-    doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
+    if expvars_train is not None:
+        expvars_train = expvars_train[valid_docs]
     wordcounts_train = X_train.sum(axis=0)
-    return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vectorizer.get_feature_names, doc_windows_train, expvars_train
+    return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vectorizer.get_feature_names, \
+           doc_windows_train, expvars_train
 
 
 def get_windows(encoded_docs, labels, window_size):
