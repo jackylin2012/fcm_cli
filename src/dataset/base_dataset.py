@@ -73,7 +73,7 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
         expvars_train = expvars_train[valid_docs]
     wordcounts_train = X_train.sum(axis=0)
     doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
-    return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vectorizer.get_feature_names, \
+    return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vectorizer.get_feature_names(), \
            doc_windows_train, expvars_train
 
 
