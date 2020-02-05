@@ -66,13 +66,13 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
                                 if vectorizer.vocabulary_.get(word) is not None]
                                for document in doc_train]
     encoded_documents_train = filter_list(encoded_documents_train, valid_docs)
-    doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
     X_train = X_train[valid_docs]
     y_train = np.array(y_train)[valid_docs]
     X_test = vectorizer.transform(doc_test).toarray()
     if expvars_train is not None:
         expvars_train = expvars_train[valid_docs]
     wordcounts_train = X_train.sum(axis=0)
+    doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
     return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vectorizer.get_feature_names, \
            doc_windows_train, expvars_train
 
@@ -85,7 +85,7 @@ def get_windows(encoded_docs, labels, window_size):
     ----------
     encoded_docs : iterable of iterable
         List of encoded documents which are list of encoded words
-    labels : ndarray, shape (n_test_docs,)
+    labels : ndarray
         Binary labels of the encoded documents, ndarray with values of 0 or 1.
     window_size : int
         The size of context window for training the word embedding
