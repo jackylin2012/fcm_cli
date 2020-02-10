@@ -123,7 +123,7 @@ def grid_search(config_path):
     fcm_params = config["fcm_params"]
     fit_params = config["fit_params"]
 
-    results = pandas.DataFrame(columns=["id", "run_time", "total_loss", "sgns_loss", "dirichlet_loss",
+    results = pandas.DataFrame(columns=["id", "run_time",  "total_loss", "sgns_loss", "dirichlet_loss",
                                         "pred_loss", "div_loss", "train_auc", "test_auc"]
                                        + ["dataset." + k for k in dataset_params.keys()]
                                        + ["fcm." + k for k in fcm_params.keys()]

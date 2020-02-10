@@ -99,13 +99,15 @@ class FocusedConceptMiner(nn.Module):
         if expvars_test is not None:
             self.expvars_test = torch.tensor(expvars_test, dtype=torch.float32, requires_grad=False, device=device)
         # word embedding
-        self.embedding_i = nn.Embedding(num_embeddings=vocab_size,
-                                        embedding_dim=embed_size,
-                                        sparse=False)
-        if word_vectors is not None:
-            self.embedding_i.weight.data = torch.FloatTensor(word_vectors)
+        if word_vectors is None:
+            self.embedding_i = nn.Linear(embed_size, vocab_size, bias=False)
         else:
-            torch.nn.init.kaiming_normal_(self.embedding_i.weight)
+            self.embedding_i = word_vectors.clone().float().to(device)
+
+        ## define the matrix containing the topic embeddings
+        self.alphas = nn.Linear(embed_size, ntopics, bias=False)  # nn.Parameter(torch.randn(rho_size, num_topics))
+        self.mu_q_theta = nn.Linear(hidden_size, ntopics, bias=True)
+        self.logsigma_q_theta = nn.Linear(hidden_size, ntopics, bias=True)
 
         # regular embedding for topics (never indexed so not sparse)
         self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embed_size)[0:ntopics]))
@@ -121,22 +123,15 @@ class FocusedConceptMiner(nn.Module):
         # embedding for per-document topic weights
         if self.inductive:
             weight_generator_network = []
-            if num_layers > 0:
-                # input layer
-                weight_generator_network.extend([torch.nn.Linear(vocab_size, hidden_size),
+            # input layer
+            weight_generator_network.extend([torch.nn.Linear(vocab_size, hidden_size),
+                                             torch.nn.Tanh(),
+                                             torch.nn.Dropout(inductive_dropout)])
+            # hidden layers
+            for h in range(num_layers):
+                weight_generator_network.extend([torch.nn.Linear(hidden_size, hidden_size),
                                                  torch.nn.Tanh(),
                                                  torch.nn.Dropout(inductive_dropout)])
-                # hidden layers
-                for h in range(num_layers):
-                    weight_generator_network.extend([torch.nn.Linear(hidden_size, hidden_size),
-                                                     torch.nn.Tanh(),
-                                                     torch.nn.Dropout(inductive_dropout)])
-                # output layer
-                weight_generator_network.append(torch.nn.Linear(hidden_size,
-                                                                ntopics))
-            else:
-                weight_generator_network.append(torch.nn.Linear(vocab_size,
-                                                                ntopics))
             for m in weight_generator_network:
                 if type(m) == torch.nn.Linear:
                     torch.nn.init.normal_(m.weight)
@@ -145,7 +140,7 @@ class FocusedConceptMiner(nn.Module):
             # self.doc_topic_weights = nn.Linear(vocab_size, ntopics)
         else:
             self.doc_topic_weights = nn.Embedding(num_embeddings=ndocs,
-                                                  embedding_dim=ntopics,
+                                                  embedding_dim=hidden_size,
                                                   sparse=False)
             if doc_topic_weights is not None:
                 self.doc_topic_weights.weight.data = torch.FloatTensor(doc_topic_weights)
@@ -181,62 +176,80 @@ class FocusedConceptMiner(nn.Module):
         self.dropout2 = nn.Dropout(consts.DOC_VECS_DROPOUT)
         self.multinomial = AliasMultinomial(wf, self.device)
 
-    def forward(self, doc, target, contexts, labels, per_doc_loss=None):
+    def reparameterize(self, mu, logvar):
+        """Returns a sample from a Gaussian distribution via reparameterization.
+        """
+        if self.training:
+            std = torch.exp(0.5 * logvar)
+            eps = torch.randn_like(std)
+            return eps.mul_(std).add_(mu)
+        else:
+            return mu
+
+    def encode(self, bows):
+        """Returns paramters of the variational distribution for \theta.
+
+        input: bows
+                batch of bag-of-words...tensor of shape bsz x V
+        output: mu_theta, log_sigma_theta
+        """
+        q_theta = self.doc_topic_weights(bows)
+        q_theta = self.dropout1(q_theta)
+        mu_theta = self.mu_q_theta(q_theta)
+        logsigma_theta = self.logsigma_q_theta(q_theta)
+        kl_theta = -0.5 * torch.sum(1 + logsigma_theta - mu_theta.pow(2) - logsigma_theta.exp(), dim=-1).mean()
+        return mu_theta, logsigma_theta, kl_theta
+
+    def get_beta(self):
+        try:
+            logit = self.alphas(self.embedding_i.weight) # torch.mm(self.rho, self.alphas)
+        except:
+            logit = self.alphas(self.embedding_i)
+        beta = F.softmax(logit, dim=0).transpose(1, 0) ## softmax over vocab dimension
+        return beta
+
+    def get_theta(self, normalized_bows):
+        mu_theta, logsigma_theta, kld_theta = self.encode(normalized_bows)
+        z = self.reparameterize(mu_theta, logsigma_theta)
+        theta = F.softmax(z, dim=-1)
+        return theta, kld_theta
+
+    def decode(self, theta, beta):
+        res = torch.mm(theta, beta)
+        preds = torch.log(res+1e-6)
+        return preds
+
+    def forward(self, doc, target, labels, per_doc_loss=None):
         """
         Args:
             doc:        [batch_size,1] LongTensor of document indices
             target:     [batch_size,1] LongTensor of target (pivot) word indices
-            contexts:   [batchsize,window_size] LongTensor of convext word indices
             labels:     [batchsize,1] LongTensor of document labels
 
             All arguments are tensors wrapped in Variables.
         """
-        batch_size, window_size = contexts.size()
+        batch_size = doc.size()[0]
 
         # reweight loss by document length
         w = autograd.Variable(self.docweights[doc.data]).to(self.device)
         w /= w.sum()
         w *= w.size(0)
 
-        # construct document vector = weighted linear combination of topic vectors
-        if self.inductive:
-            doc_topic_weights = self.doc_topic_weights(self.X_train[doc])
-        else:
-            doc_topic_weights = self.doc_topic_weights(doc)
-        doc_topic_probs = F.softmax(doc_topic_weights, dim=1)
+        bows = self.X_train[doc]
+        sums = bows.sum(1).unsqueeze(1)
+        normalized_bows = bows / sums
+
+        theta, kld_theta = self.get_theta(normalized_bows)
+        ## get \beta
+        beta = self.get_beta()
+
+        ## get prediction loss
+        preds = self.decode(theta, beta)
+        recon_loss = -(preds * bows).sum(1)
+        recon_loss = recon_loss.mean()
+
+        doc_topic_probs = theta
         doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
-        topic_embeddings = self.embedding_t.expand(batch_size, -1, -1)  # (batches, T, E)
-        doc_vector = torch.bmm(doc_topic_probs, topic_embeddings)  # (batches, 1, E)
-        doc_vector = doc_vector.squeeze(dim=1)  # (batches, E)
-        doc_vector = self.dropout2(doc_vector)
-
-        # sample negative word indices for negative sampling loss; approximation by sampling from the whole vocab
-        if self.device == "cpu":
-            nwords = torch.multinomial(self.weights, batch_size * window_size * self.nnegs,
-                                       replacement=True).view(batch_size, -1)
-            nwords = autograd.Variable(nwords)
-        else:
-            nwords = self.multinomial.draw(batch_size * window_size * self.nnegs)
-            nwords = autograd.Variable(nwords).view(batch_size, window_size * self.nnegs)
-
-        # compute word vectors
-        ivectors = self.dropout1(self.embedding_i(target))  # (batches, E)
-        ovectors = self.embedding_i(contexts)  # (batches, window_size, E)
-        nvectors = self.embedding_i(nwords).neg()  # row vector
-
-        # construct "context" vector defined by lda2vec
-        context_vectors = doc_vector + ivectors
-        context_vectors = context_vectors.unsqueeze(2)  # (batches, E, 1)
-
-        # compose negative sampling loss
-        oloss = torch.bmm(ovectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
-        nloss = torch.bmm(nvectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
-        negative_sampling_loss = (oloss + nloss).neg()
-        negative_sampling_loss *= w  # downweight loss for each document
-        if per_doc_loss is not None:
-            per_doc_loss[doc] += negative_sampling_loss.data
-        negative_sampling_loss = negative_sampling_loss.mean()  # mean over the batch
-
         # compose dirichlet loss
         doc_topic_probs = doc_topic_probs.squeeze(dim=1)  # (batches, T)
         doc_topic_probs = doc_topic_probs.clamp(min=consts.EPS)
@@ -283,7 +296,7 @@ class FocusedConceptMiner(nn.Module):
             per_doc_loss[doc] += div_loss.data
         div_loss = div_loss.mean()  # mean over the entire batch
 
-        return negative_sampling_loss, dirichlet_loss, pred_loss, div_loss
+        return recon_loss, dirichlet_loss, pred_loss, div_loss
 
     def fit(self, lr=0.01, nepochs=200, pred_only_epochs=20,
             batch_size=10, weight_decay=0.01, grad_clip=5, save_epochs=10):
@@ -338,10 +351,9 @@ class FocusedConceptMiner(nn.Module):
                 batch = batch.to(self.device)
                 doc = batch[:, 0]
                 iword = batch[:, 1]
-                owords = batch[:, 2:-1]
                 labels = batch[:, -1].float()
 
-                sgns_loss, dirichlet_loss, pred_loss, div_loss = self(doc, iword, owords, labels)
+                sgns_loss, dirichlet_loss, pred_loss, div_loss = self(doc, iword, labels)
                 if epoch < pred_only_epochs:
                     loss = pred_loss
                 else:
@@ -428,21 +440,22 @@ class FocusedConceptMiner(nn.Module):
 
     # TODO: add filtering such as pos and tf
     def get_concept_words(self, top_k=10, concept_metric='dot'):
-        concept_embed = self.embedding_t.data.cpu().numpy()
-        word_embed = self.embedding_i.weight.data.cpu().numpy()
-        if concept_metric == 'dot':
-            dist = -np.matmul(concept_embed, np.transpose(word_embed, (1, 0)))
-        else:
-            dist = cdist(concept_embed, word_embed, metric=concept_metric)
-        nearest_word_idxs = np.argsort(dist, axis=1)[:, :top_k]  # indices of words with min cosine distance
         topics = []
         topic_file = open(os.path.join(self.out_dir, "topic_words.txt"), "w")
-
-        for j in range(self.ntopics):
-            nearest_words = [self.vocab[i] for i in nearest_word_idxs[j, :]]
-            topics.append(nearest_words)
-            self.logger.info('topic %d: %s' % (j + 1, ' '.join(nearest_words)))
-            topic_file.write('topic %d: %s\n' % (j + 1, ' '.join(nearest_words)))
+        self.eval()
+        ## visualize topics using monte carlo
+        with torch.no_grad():
+            print('#' * 100)
+            print('Visualize topics...')
+            topics_words = []
+            gammas = self.get_beta()
+            for k in range(self.ntopics):
+                gamma = gammas[k]
+                top_words = list(gamma.cpu().numpy().argsort()[-top_k + 1:][::-1])
+                topic_words = [self.vocab[a] for a in top_words]
+                topics_words.append(' '.join(topic_words))
+                print('Topic {}: {}'.format(k, topic_words))
+                topic_file.write('topic %d: %s\n' % (k + 1, ' '.join(topic_words)))
         topic_file.close()
         return topics
 
