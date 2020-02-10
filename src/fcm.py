@@ -408,20 +408,28 @@ class FocusedConceptMiner(nn.Module):
         self.logger.info("%s AUC: %.4f" % (split, auc))
         return auc
 
-    def predict_proba(self, count_matrix, expvars=None):
+    def predict_proba(self, bows, expvars=None):
         with torch.no_grad():
-            batch_size = count_matrix.size(0)
-            if self.inductive:
-                doc_topic_weights = self.doc_topic_weights(count_matrix)
-            else:
-                doc_topic_weights = self.doc_topic_weights.weight.data
-            doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
+            batch_size = bows.size(0)
+
+            sums = bows.sum(1).unsqueeze(1)
+            normalized_bows = bows / sums
+            theta, kld_theta = self.get_theta(normalized_bows)
+
+            doc_topic_probs = theta
+            doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
+            # compose dirichlet loss
+            doc_topic_probs = doc_topic_probs.squeeze(dim=1)  # (batches, T)
+            doc_topic_probs = doc_topic_probs.clamp(min=consts.EPS)
+
             ones = torch.ones((batch_size, 1)).to(self.device)
             doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
 
-            if expvars is not None:
+            # expand doc_topic_probs vector with explanatory variables
+            if self.expvars_train is not None:
                 doc_topic_probs = torch.cat((doc_topic_probs, expvars), dim=1)
-
+            # compose prediction loss
+            # [batch_size] = torch.matmul([batch_size, ntopics], [ntopics])
             pred_weight = torch.matmul(doc_topic_probs, self.theta)
             pred_proba = pred_weight.sigmoid()
         return pred_proba
