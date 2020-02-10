@@ -101,13 +101,19 @@ class FocusedConceptMiner(nn.Module):
         # word embedding
         if word_vectors is None:
             self.embedding_i = nn.Linear(embed_size, vocab_size, bias=False)
+            torch.nn.init.normal_(self.embedding_i.weight)
         else:
             self.embedding_i = word_vectors.clone().float().to(device)
 
         ## define the matrix containing the topic embeddings
         self.alphas = nn.Linear(embed_size, ntopics, bias=False)  # nn.Parameter(torch.randn(rho_size, num_topics))
+        torch.nn.init.normal_(self.alphas.weight)
         self.mu_q_theta = nn.Linear(hidden_size, ntopics, bias=True)
+        torch.nn.init.normal_(self.mu_q_theta.weight)
+        torch.nn.init.normal_(self.mu_q_theta.bias)
         self.logsigma_q_theta = nn.Linear(hidden_size, ntopics, bias=True)
+        torch.nn.init.normal_(self.logsigma_q_theta.weight)
+        torch.nn.init.normal_(self.logsigma_q_theta.bias)
 
         # regular embedding for topics (never indexed so not sparse)
         self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embed_size)[0:ntopics]))
@@ -238,6 +244,7 @@ class FocusedConceptMiner(nn.Module):
         bows = self.X_train[doc]
         sums = bows.sum(1).unsqueeze(1)
         normalized_bows = bows / sums
+        normalized_bows[normalized_bows != normalized_bows] = 0
 
         theta, kld_theta = self.get_theta(normalized_bows)
         ## get \beta
@@ -248,7 +255,7 @@ class FocusedConceptMiner(nn.Module):
         recon_loss = -(preds * bows).sum(1)
         recon_loss = recon_loss.mean()
 
-        doc_topic_probs = theta
+        doc_topic_probs = F.softmax(theta, dim=1)
         doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
         # compose dirichlet loss
         doc_topic_probs = doc_topic_probs.squeeze(dim=1)  # (batches, T)
@@ -414,9 +421,10 @@ class FocusedConceptMiner(nn.Module):
 
             sums = bows.sum(1).unsqueeze(1)
             normalized_bows = bows / sums
+            normalized_bows[normalized_bows != normalized_bows] = 0
             theta, kld_theta = self.get_theta(normalized_bows)
 
-            doc_topic_probs = theta
+            doc_topic_probs = F.softmax(theta, dim=1)
             doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
             # compose dirichlet loss
             doc_topic_probs = doc_topic_probs.squeeze(dim=1)  # (batches, T)
