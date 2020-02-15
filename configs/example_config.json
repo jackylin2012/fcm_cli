@@ -5,7 +5,7 @@
     "max_threads": 1,
     "max_mem": 5e6,
     "wait_time": 300,
-    "out_dir": "../grid_search/topic_embed",
+    "out_dir": "../grid_search/prosper/topic_embed/run0",
     "concept_metric" : "hamming",
     "dataset_params" : {
         "window_size": [2, 4],

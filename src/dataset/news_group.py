@@ -34,7 +34,7 @@ class NewsDataset(BaseDataset):
             return NewsDataset.data
 
         vectorizer = CountVectorizer(min_df=min_df, max_df=max_df)
-        X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, _ = \
+        X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, _, embed = \
             encode_documents(vectorizer, window_size, self.doc_train, self.y_train, self.doc_test)
 
         data = {
@@ -45,7 +45,8 @@ class NewsDataset(BaseDataset):
             "y_train": y_train,
             "X_test": X_test,
             "y_test": self.y_test,
-            "vocab": vocab
+            "vocab": vocab,
+            "word_vectors": embed
         }
         os.makedirs(DATA_DIR, exist_ok=True)
         pickle.dump(data, open(file_name, "wb"))

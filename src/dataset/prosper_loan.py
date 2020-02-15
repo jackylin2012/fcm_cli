@@ -87,7 +87,7 @@ class WordsSweatDataset(BaseDataset):
             return WordsSweatDataset.data
 
         vectorizer = CountVectorizer(tokenizer=tokenize, stop_words='english',min_df=min_df, max_df=max_df, max_features=vocab_size)
-        X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, expvars_train = \
+        X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, expvars_train, embed = \
             encode_documents(vectorizer, window_size, self.doc_train, self.y_train, self.doc_test, self.expvars_train)
         data = {
             "doc_windows": doc_windows_train,
@@ -99,7 +99,8 @@ class WordsSweatDataset(BaseDataset):
             "y_test": self.y_test,
             "vocab": vocab,
             "expvars_train": expvars_train,
-            "expvars_test": self.expvars_test
+            "expvars_test": self.expvars_test,
+            "word_vectors": embed
         }
         pickle.dump(data, open(file_name, "wb"))
 

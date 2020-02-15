@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 class BaseDataset(object):
@@ -55,6 +56,25 @@ def filter_list(original, include):
     return [original[i] for i in range(len(include)) if include[i]]
 
 
+def load_emb(w2i, path_to_embedding, embedding_size=50, init_emb=None):
+    if init_emb is None:
+        emb_mat = np.random.randn(len(w2i), embedding_size)
+    else:
+        emb_mat = init_emb
+    f = open(path_to_embedding, 'r')
+    found = 0
+    for line in f:
+        content = line.strip().split()
+        vector = np.asarray(list(map(lambda x: float(x), content[-embedding_size:])))
+        word = ' '.join(content[:-embedding_size])
+        if word in w2i:
+            idx = w2i[word]
+            emb_mat[idx, :] = vector
+            found += 1
+    print(f"Found {found} words in the embedding file.")
+    return torch.tensor(emb_mat).float()
+
+
 def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expvars_train=None):
     analyze = vectorizer.build_analyzer()
     X_train = vectorizer.fit_transform(doc_train).toarray()
@@ -73,8 +93,10 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
         expvars_train = expvars_train[valid_docs]
     wordcounts_train = X_train.sum(axis=0)
     doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
-    return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vectorizer.get_feature_names(), \
-           doc_windows_train, expvars_train
+    vocab = vectorizer.get_feature_names()
+    embed = load_emb(vocab, "../data/glove.6B.200d.txt", embedding_size=50)
+    return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vocab, \
+           doc_windows_train, expvars_train, embed
 
 
 def get_windows(encoded_docs, labels, window_size):
