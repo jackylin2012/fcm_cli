@@ -94,7 +94,7 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
     wordcounts_train = X_train.sum(axis=0)
     doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
     vocab = vectorizer.get_feature_names()
-    embed = load_emb(vocab, "../data/glove.6B.200d.txt", embedding_size=50)
+    embed = load_emb(vocab, "../data/glove.6B.50d.txt", embedding_size=50)
     return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vocab, \
            doc_windows_train, expvars_train, embed
 

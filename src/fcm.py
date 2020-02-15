@@ -103,7 +103,8 @@ class FocusedConceptMiner(nn.Module):
             self.embedding_i = nn.Linear(embed_size, vocab_size, bias=False)
             torch.nn.init.normal_(self.embedding_i.weight)
         else:
-            self.embedding_i = word_vectors.clone().float().to(device)
+            self.embedding_i = nn.Embedding(word_vectors.shape[0], word_vectors.shape[1])
+            self.embedding_i.weight.data = word_vectors
 
         ## define the matrix containing the topic embeddings
         self.alphas = nn.Linear(embed_size, ntopics, bias=False)  # nn.Parameter(torch.randn(rho_size, num_topics))
