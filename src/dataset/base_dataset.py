@@ -119,36 +119,12 @@ def get_windows(encoded_docs, labels, window_size):
         the document index of the context window, the encoded target words, the encoded context words,
         and the document's label.
     """
-    half_window = window_size // 2
     windows = []
     for i in range(len(encoded_docs)):
-        concatenated_doc = encoded_docs[i]
         label = labels[i]
+        windows.append([i, label])
 
-        doc_len = len(concatenated_doc)
-
-        for j in range(doc_len):
-            target = concatenated_doc[j]
-
-            if j < half_window:
-                left_context = concatenated_doc[0:j]
-                remaining = half_window - j
-                right_context = concatenated_doc[j + 1:min(j + half_window + 1 + remaining, doc_len)]
-
-            elif doc_len - j - 1 < half_window:
-                right_context = concatenated_doc[j + 1:doc_len]
-                remaining = half_window - (doc_len - j - 1)
-                left_context = concatenated_doc[max(0, j - half_window - remaining):j]
-
-            else:
-                left_context = concatenated_doc[max(0, j - half_window):j]
-                right_context = concatenated_doc[j + 1:min(j + half_window + 1, doc_len)]
-            w = [i, target] + left_context + right_context + [label]
-            if len(w) != window_size + 3:
-                raise ValueError("j=%d, left_context=%s, right_context=%s, w=%s" % (j, left_context, right_context, w))
-            windows.append([i, target] + left_context + right_context + [label])
-
-    windows_array = np.zeros((len(windows), window_size + 3), dtype=np.int)
+    windows_array = np.zeros((len(windows), 2), dtype=np.int)
     for i, w in enumerate(windows):
         windows_array[i, :] = w
 

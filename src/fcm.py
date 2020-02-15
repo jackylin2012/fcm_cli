@@ -226,7 +226,7 @@ class FocusedConceptMiner(nn.Module):
         preds = torch.log(res+1e-6)
         return preds
 
-    def forward(self, doc, target, labels, per_doc_loss=None):
+    def forward(self, doc, labels, per_doc_loss=None):
         """
         Args:
             doc:        [batch_size,1] LongTensor of document indices
@@ -358,10 +358,9 @@ class FocusedConceptMiner(nn.Module):
                 batch = autograd.Variable(torch.LongTensor(batch))
                 batch = batch.to(self.device)
                 doc = batch[:, 0]
-                iword = batch[:, 1]
                 labels = batch[:, -1].float()
 
-                sgns_loss, dirichlet_loss, pred_loss, div_loss = self(doc, iword, labels)
+                sgns_loss, dirichlet_loss, pred_loss, div_loss = self(doc, labels)
                 if epoch < pred_only_epochs:
                     loss = pred_loss
                 else:
