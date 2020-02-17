@@ -207,7 +207,6 @@ class FocusedConceptMiner(nn.Module):
         doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
         topic_embeddings = self.embedding_t.expand(batch_size, -1, -1)  # (batches, T, E)
         doc_vector = torch.bmm(doc_topic_probs, topic_embeddings)  # (batches, 1, E)
-        doc_vector = doc_vector.squeeze(dim=1)  # (batches, E)
         doc_vector = self.dropout2(doc_vector)
 
         # sample negative word indices for negative sampling loss; approximation by sampling from the whole vocab
@@ -221,16 +220,15 @@ class FocusedConceptMiner(nn.Module):
 
         # compute word vectors
         ivectors = self.dropout1(self.embedding_i(target))  # (batches, E)
-        ovectors = self.embedding_i(contexts)  # (batches, window_size, E)
-        nvectors = self.embedding_i(nwords).neg()  # row vector
+        ovectors = doc_vector + self.embedding_i(contexts)  # (batches, window_size, E)
+        nvectors = doc_vector + self.embedding_i(nwords).neg()  # row vector
 
         # construct "context" vector defined by lda2vec
-        context_vectors = doc_vector + ivectors
-        context_vectors = context_vectors.unsqueeze(2)  # (batches, E, 1)
+        ivectors = ivectors.unsqueeze(2)  # (batches, E, 1)
 
         # compose negative sampling loss
-        oloss = torch.bmm(ovectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
-        nloss = torch.bmm(nvectors, context_vectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
+        oloss = torch.bmm(ovectors, ivectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
+        nloss = torch.bmm(nvectors, ivectors).squeeze(dim=2).sigmoid().clamp(min=consts.EPS).log().sum(1)
         negative_sampling_loss = (oloss + nloss).neg()
         negative_sampling_loss *= w  # downweight loss for each document
         if per_doc_loss is not None:
