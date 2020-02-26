@@ -438,11 +438,6 @@ class FocusedConceptMiner(nn.Module):
             theta, kld_theta = self.get_theta(normalized_bows)
 
             doc_topic_probs = theta
-            doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
-            # compose dirichlet loss
-            doc_topic_probs = doc_topic_probs.squeeze(dim=1)  # (batches, T)
-            doc_topic_probs = doc_topic_probs.clamp(min=consts.EPS)
-
             ones = torch.ones((batch_size, 1)).to(self.device)
             doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
 
