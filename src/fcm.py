@@ -104,8 +104,6 @@ class FocusedConceptMiner(nn.Module):
                                         sparse=False)
         if word_vectors is not None:
             self.embedding_i.weight.data = torch.FloatTensor(word_vectors)
-        else:
-            torch.nn.init.kaiming_normal_(self.embedding_i.weight)
 
         # regular embedding for topics (never indexed so not sparse)
         self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embed_size)[0:ntopics]))
@@ -137,10 +135,6 @@ class FocusedConceptMiner(nn.Module):
             else:
                 weight_generator_network.append(torch.nn.Linear(vocab_size,
                                                                 ntopics))
-            for m in weight_generator_network:
-                if type(m) == torch.nn.Linear:
-                    torch.nn.init.normal_(m.weight)
-                    torch.nn.init.normal_(m.bias)
             self.doc_topic_weights = torch.nn.Sequential(*weight_generator_network)
             # self.doc_topic_weights = nn.Linear(vocab_size, ntopics)
         else:
@@ -149,8 +143,6 @@ class FocusedConceptMiner(nn.Module):
                                                   sparse=False)
             if doc_topic_weights is not None:
                 self.doc_topic_weights.weight.data = torch.FloatTensor(doc_topic_weights)
-            else:
-                torch.nn.init.kaiming_normal_(self.doc_topic_weights.weight)
 
         if theta is not None:
             self.theta = Parameter(torch.FloatTensor(theta))
@@ -162,7 +154,6 @@ class FocusedConceptMiner(nn.Module):
                 self.theta = Parameter(torch.FloatTensor(ntopics + nexpvars + 1))  # + 1 for bias
             else:
                 self.theta = Parameter(torch.FloatTensor(ntopics + 1))  # + 1 for bias
-            torch.nn.init.normal_(self.theta)
 
         # enable gradients (True by default, just confirming)
         self.embedding_i.weight.requires_grad = True
