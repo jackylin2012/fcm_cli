@@ -29,7 +29,7 @@
     "lr": [0.01],
     "nepochs": [30],
     "pred_only_epochs": [15],
-    "batch_size": [20],
+    "batch_size": [10240],
     "grad_clip": [1024]
   }
 }
