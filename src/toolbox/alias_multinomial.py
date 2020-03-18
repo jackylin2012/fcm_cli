@@ -17,7 +17,7 @@ class AliasMultinomial(object):
         """
 
         K = len(probs)
-        self.q = torch.zeros(K).to(device)
+        self.q = torch.zeros(K, dtype=torch.float32).to(device)
         self.J = torch.LongTensor([0]*K).to(device)
         self.device = device
 
@@ -47,8 +47,8 @@ class AliasMultinomial(object):
             else:
                 larger.append(large)
 
-        self.q.clamp(0.0, 1.0)
-        self.J.clamp(0, K - 1)
+        self.q = self.q.clamp(0.0, 1.0)
+        self.J = self.J.clamp(0, K - 1)
 
     def draw(self, N):
         """Draw N samples from the distribution."""
