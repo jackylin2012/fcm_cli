@@ -3,6 +3,7 @@ import itertools
 import json
 import os
 import random
+import sys
 import threading
 import time
 import traceback
@@ -14,7 +15,8 @@ import torch
 
 from fcm import FocusedConceptMiner
 from toolbox.helper_functions import get_dataset
-import psutil
+
+# import psutil
 
 random.seed(0)
 
@@ -25,13 +27,13 @@ queue = Queue()
 lock = threading.Lock()
 
 
-def available_memory(device):
-    if device == "cpu" or not torch.cuda.is_available():
-        return psutil.virtual_memory()[4]
-    else:
-        return torch.cuda.get_device_properties(torch.device(device)).total_memory - torch.cuda.memory_allocated(device)
+# def available_memory(device):
+#     if device == "cpu" or not torch.cuda.is_available():
+#         return psutil.virtual_memory()[4]
+#     else:
+#         return torch.cuda.get_device_properties(torch.device(device)).total_memory - torch.cuda.memory_allocated(device)
 
-#TODO: multithread result file conflict
+# TODO: multithread result file conflict
 def training_thread(device_idx, ds, config):
     global results
     max_mem = config["max_mem"]
@@ -40,12 +42,12 @@ def training_thread(device_idx, ds, config):
     concept_metric = config.get("concept_metric", "dot")
 
     while not queue.empty():
-        available_mem = available_memory(devices[device_idx])
-        while available_mem < max_mem:
-            print("Not enough memory left ({} < max_mem={}) on device {}. Sleep for {} secs and retry".format(
-                available_mem, max_mem, devices[device_idx], wait_time))
-            time.sleep(wait_time)
-            device_idx = (device_idx + 1) % len(devices)
+        # available_mem = available_memory(devices[device_idx])
+        # while available_mem < max_mem:
+        #     print("Not enough memory left ({} < max_mem={}) on device {}. Sleep for {} secs and retry".format(
+        #         available_mem, max_mem, devices[device_idx], wait_time))
+        #     time.sleep(wait_time)
+        #     device_idx = (device_idx + 1) % len(devices)
         device = devices[device_idx]
         dataset_params, fcm_params, fit_params = queue.get_nowait()
         params = {"dataset": dataset_params, "fcm": fcm_params, "fit": fit_params}
@@ -55,7 +57,7 @@ def training_thread(device_idx, ds, config):
             with lock:
                 current_out_dir = os.path.join(out_dir, param_id)
                 if os.path.exists(current_out_dir):
-                    #TODO: better handling
+                    # TODO: better handling
                     print("id {} has already been run, skip...".format(param_id))
                     continue
                 os.makedirs(current_out_dir)
@@ -79,7 +81,7 @@ def training_thread(device_idx, ds, config):
             del fc_miner
             del data_attr
         except Exception as e:
-            print(traceback.format_exc())
+            traceback.print_exc(file=sys.stdout)
             print("WARNING: exception raised while training on {} with dataset_params={}, "
                   "fcm_params={}, fit_params={}".format(device, dataset_params, fcm_params, fit_params))
             queue.put((dataset_params, fcm_params, fit_params))
@@ -91,7 +93,7 @@ def training_thread(device_idx, ds, config):
                           **{"fit." + k: v for k, v in fit_params.items()},
                           "id": param_id, "run_time": run_time,
                           "total_loss": best_losses[0], "sgns_loss": best_losses[1],
-                          "dirichlet_loss": best_losses[2],  "pred_loss": best_losses[3], "div_loss": best_losses[4],
+                          "dirichlet_loss": best_losses[2], "pred_loss": best_losses[3], "div_loss": best_losses[4],
                           "train_auc": best_aucs[0], "test_auc": best_aucs[1]}
             with lock:
                 results = results.append(new_result, ignore_index=True)
