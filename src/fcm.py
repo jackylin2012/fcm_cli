@@ -24,7 +24,7 @@ np.random.seed(consts.SEED)
 class FocusedConceptMiner(nn.Module):
 
     def __init__(self, out_dir, embed_dim=300, nnegs=15, nconcepts=25, lam=100.0, rho=100.0, eta=1.0, hidden_size=100,
-                 num_layers=1, inductive_dropout=0.01, doc_topic_probs=None, word_vectors=None, theta=None, gpu=None,
+                 num_layers=1, inductive_dropout=0.01, doc_concept_probs=None, word_vectors=None, theta=None, gpu=None,
                  inductive=True, bow_train=None, y_train=None, bow_test=None, y_test=None, doc_windows=None, vocab=None,
                  word_counts=None, doc_lens=None, expvars_train=None, expvars_test=None, file_log=False):
         """A class representing a Focused Concept Miner which can mine concepts from unstructured text data while
@@ -35,7 +35,7 @@ class FocusedConceptMiner(nn.Module):
         out_dir : str
             The directory to save outputs from this instance
         embed_dim : int
-            The size of each word/topic embedding vector
+            The size of each word/concept embedding vector
         nnegs : int
             The number of negative context words to be sampled during the training of word embeddings
         nconcepts : int
@@ -46,8 +46,8 @@ class FocusedConceptMiner(nn.Module):
             Classification loss weight
         eta : float
             Diversity loss weight
-        doc_topic_probs [OPTIONAL] : ndarray, shape (n_train_docs, n_concepts)
-            Pretrained topic distribution of each training document
+        doc_concept_probs [OPTIONAL] : ndarray, shape (n_train_docs, n_concepts)
+            Pretrained concept distribution of each training document
         word_vectors [OPTIONAL] : ndarray, shape (vocab_size, embed_dim)
             Pretrained word embedding vectors
         theta [OPTIONAL] : ndarray, shape (n_concepts + 1) if `expvars_train` and `expvars_test` are None,
@@ -136,7 +136,7 @@ class FocusedConceptMiner(nn.Module):
         else:
             torch.nn.init.kaiming_normal_(self.embedding_i.weight)
 
-        # regular embedding for topics (never indexed so not sparse)
+        # regular embedding for concepts (never indexed so not sparse)
         self.embedding_t = nn.Parameter(torch.FloatTensor(ortho_group.rvs(embed_dim)[0:nconcepts]))
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
@@ -147,7 +147,7 @@ class FocusedConceptMiner(nn.Module):
             logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
         self.logger = logging.getLogger(__name__)
 
-        # embedding for per-document topic weights
+        # embedding for per-document concept weights
         if self.inductive:
             weight_generator_network = []
             if num_layers > 0:
@@ -170,15 +170,15 @@ class FocusedConceptMiner(nn.Module):
                 if type(m) == torch.nn.Linear:
                     torch.nn.init.normal_(m.weight)
                     torch.nn.init.normal_(m.bias)
-            self.doc_topic_network = torch.nn.Sequential(*weight_generator_network)
+            self.doc_concept_network = torch.nn.Sequential(*weight_generator_network)
         else:
-            self.doc_topic_weights = nn.Embedding(num_embeddings=ndocs,
+            self.doc_concept_weights = nn.Embedding(num_embeddings=ndocs,
                                                   embedding_dim=nconcepts,
                                                   sparse=False)
-            if doc_topic_probs is not None:
-                self.doc_topic_weights.weight.data = torch.FloatTensor(doc_topic_probs)
+            if doc_concept_probs is not None:
+                self.doc_concept_weights.weight.data = torch.FloatTensor(doc_concept_probs)
             else:
-                torch.nn.init.kaiming_normal_(self.doc_topic_probs.weight)
+                torch.nn.init.kaiming_normal_(self.doc_concept_probs.weight)
 
         if theta is not None:
             self.theta = Parameter(torch.FloatTensor(theta))
@@ -225,15 +225,15 @@ class FocusedConceptMiner(nn.Module):
         w /= w.sum()
         w *= w.size(0)
 
-        # construct document vector = weighted linear combination of topic vectors
+        # construct document vector = weighted linear combination of concept vectors
         if self.inductive:
-            doc_topic_weights = self.doc_topic_network(self.bow_train[doc])
+            doc_concept_weights = self.doc_concept_network(self.bow_train[doc])
         else:
-            doc_topic_weights = self.doc_topic_weights(doc)
-        doc_topic_probs = F.softmax(doc_topic_weights, dim=1)
-        doc_topic_probs = doc_topic_probs.unsqueeze(1)  # (batches, 1, T)
-        topic_embeddings = self.embedding_t.expand(batch_size, -1, -1)  # (batches, T, E)
-        doc_vector = torch.bmm(doc_topic_probs, topic_embeddings)  # (batches, 1, E)
+            doc_concept_weights = self.doc_concept_weights(doc)
+        doc_concept_probs = F.softmax(doc_concept_weights, dim=1)
+        doc_concept_probs = doc_concept_probs.unsqueeze(1)  # (batches, 1, T)
+        concept_embeddings = self.embedding_t.expand(batch_size, -1, -1)  # (batches, T, E)
+        doc_vector = torch.bmm(doc_concept_probs, concept_embeddings)  # (batches, 1, E)
         doc_vector = doc_vector.squeeze(dim=1)  # (batches, E)
         doc_vector = self.dropout2(doc_vector)
 
@@ -263,23 +263,23 @@ class FocusedConceptMiner(nn.Module):
         negative_sampling_loss = negative_sampling_loss.mean()  # mean over the batch
 
         # compose dirichlet loss
-        doc_topic_probs = doc_topic_probs.squeeze(dim=1)  # (batches, T)
-        doc_topic_probs = doc_topic_probs.clamp(min=consts.EPS)
-        dirichlet_loss = doc_topic_probs.log().sum(1)  # (batches, 1)
+        doc_concept_probs = doc_concept_probs.squeeze(dim=1)  # (batches, T)
+        doc_concept_probs = doc_concept_probs.clamp(min=consts.EPS)
+        dirichlet_loss = doc_concept_probs.log().sum(1)  # (batches, 1)
         dirichlet_loss *= self.lam * (1.0 - self.alpha)
         dirichlet_loss *= w  # downweight loss for each document
         dirichlet_loss = dirichlet_loss.mean()  # mean over the entire batch
 
         ones = torch.ones((batch_size, 1)).to(self.device)
-        doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
+        doc_concept_probs = torch.cat((ones, doc_concept_probs), dim=1)
 
-        # expand doc_topic_probs vector with explanatory variables
+        # expand doc_concept_probs vector with explanatory variables
         if self.expvars_train is not None:
-            doc_topic_probs = torch.cat((doc_topic_probs, self.expvars_train[doc, :]),
+            doc_concept_probs = torch.cat((doc_concept_probs, self.expvars_train[doc, :]),
                                         dim=1)
         # compose prediction loss
         # [batch_size] = torch.matmul([batch_size, nconcepts], [nconcepts])
-        pred_weight = torch.matmul(doc_topic_probs, self.theta)
+        pred_weight = torch.matmul(doc_concept_probs, self.theta)
         pred_loss = F.binary_cross_entropy_with_logits(pred_weight, labels,
                                                        weight=w, reduction='none')
         if torch.isnan(pred_loss).sum() > 0:
@@ -345,6 +345,7 @@ class FocusedConceptMiner(nn.Module):
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
         nwindows = len(self.train_dataset)
         results = []
+        lowest_diversity_loss = np.inf
         for epoch in range(nepochs):
             total_sgns_loss = 0.0
             total_dirichlet_loss = 0.0
@@ -398,7 +399,15 @@ class FocusedConceptMiner(nn.Module):
             self.logger.info("Dirichlet loss: %.4f" % avg_dirichlet_loss)
             self.logger.info("Prediction loss: %.4f" % avg_pred_loss)
             self.logger.info("Diversity loss: %.4f" % avg_diversity_loss)
-            self.get_concept_words(epoch=epoch, top_k=5)
+            concepts = self.get_concept_words(top_k=5)
+            for i, concept_words in enumerate(concepts):
+                self.logger.info('concept %d: %s' % (i + 1, ' '.join(concept_words)))
+            if avg_diversity_loss < lowest_diversity_loss:
+                lowest_diversity_loss = avg_diversity_loss
+                self.logger.info("Updates lowest diversity loss to %.4f. Save concept words." % avg_diversity_loss)
+                with open(os.path.join(self.out_dir, "concept_words_%d.txt" % epoch), "w") as concept_file:
+                    for i, concept_words in enumerate(concepts):
+                        concept_file.write('concept %d: %s\n' % (i + 1, ' '.join(concept_words)))
             metrics = (total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss,
                        avg_diversity_loss, train_auc, test_auc)
             train_loss_file.write("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n" % metrics)
@@ -420,40 +429,40 @@ class FocusedConceptMiner(nn.Module):
         with torch.no_grad():
             batch_size = count_matrix.size(0)
             if self.inductive:
-                doc_topic_weights = self.doc_topic_network(count_matrix)
+                doc_concept_weights = self.doc_concept_network(count_matrix)
             else:
-                doc_topic_weights = self.doc_topic_weights.weight.data
-            doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
+                doc_concept_weights = self.doc_concept_weights.weight.data
+            doc_concept_probs = F.softmax(doc_concept_weights, dim=1)  # convert to probabilities
             ones = torch.ones((batch_size, 1)).to(self.device)
-            doc_topic_probs = torch.cat((ones, doc_topic_probs), dim=1)
+            doc_concept_probs = torch.cat((ones, doc_concept_probs), dim=1)
 
             if expvars is not None:
-                doc_topic_probs = torch.cat((doc_topic_probs, expvars), dim=1)
+                doc_concept_probs = torch.cat((doc_concept_probs, expvars), dim=1)
 
-            pred_weight = torch.matmul(doc_topic_probs, self.theta)
+            pred_weight = torch.matmul(doc_concept_probs, self.theta)
             pred_proba = pred_weight.sigmoid()
         return pred_proba
 
     def visualize(self):
         with torch.no_grad():
             if self.inductive:
-                doc_topic_weights = self.doc_topic_network(self.bow_train)
+                doc_concept_weights = self.doc_concept_network(self.bow_train)
             else:
-                doc_topic_weights = self.doc_topic_weights.weight.data
-            doc_topic_probs = F.softmax(doc_topic_weights, dim=1)  # convert to probabilities
-            # [n_topics, vocab_size] weighted word counts of each topic
-            topic_word_counts = torch.matmul(doc_topic_probs.transpose(0, 1), self.bow_train)
-            # normalize word counts to word distribution of each topic
-            topic_word_dists = topic_word_counts / topic_word_counts.sum(1, True)
-            # fill NaN with 1/vocab_size in case a topic has all zero word distribution
-            topic_word_dists[topic_word_dists != topic_word_dists] = 1.0 / topic_word_dists.shape[1]
-            vis_data = pyLDAvis.prepare(topic_term_dists=topic_word_dists.data.cpu().numpy(),
-                                        doc_topic_dists=doc_topic_probs.data.cpu().numpy(),
+                doc_concept_weights = self.doc_concept_weights.weight.data
+            doc_concept_probs = F.softmax(doc_concept_weights, dim=1)  # convert to probabilities
+            # [n_concepts, vocab_size] weighted word counts of each concept
+            concept_word_counts = torch.matmul(doc_concept_probs.transpose(0, 1), self.bow_train)
+            # normalize word counts to word distribution of each concept
+            concept_word_dists = concept_word_counts / concept_word_counts.sum(1, True)
+            # fill NaN with 1/vocab_size in case a concept has all zero word distribution
+            concept_word_dists[concept_word_dists != concept_word_dists] = 1.0 / concept_word_dists.shape[1]
+            vis_data = pyLDAvis.prepare(concept_term_dists=concept_word_dists.data.cpu().numpy(),
+                                        doc_concept_dists=doc_concept_probs.data.cpu().numpy(),
                                         doc_lengths=self.doc_lens, vocab=self.vocab, term_frequency=self.word_counts)
             pyLDAvis.save_html(vis_data, os.path.join(self.out_dir, "visualization.html"))
 
     # TODO: add filtering such as pos and tf
-    def get_concept_words(self, epoch, top_k=10, concept_metric='dot'):
+    def get_concept_words(self, top_k=10, concept_metric='dot'):
         concept_embed = self.embedding_t.data.cpu().numpy()
         word_embed = self.embedding_i.weight.data.cpu().numpy()
         if concept_metric == 'dot':
@@ -461,16 +470,12 @@ class FocusedConceptMiner(nn.Module):
         else:
             dist = cdist(concept_embed, word_embed, metric=concept_metric)
         nearest_word_idxs = np.argsort(dist, axis=1)[:, :top_k]  # indices of words with min cosine distance
-        topics = []
-        topic_file = open(os.path.join(self.out_dir, "topic_words_epoch%d.txt" % epoch), "w")
+        concepts = []
         self.logger.info(self.embedding_t.data.cpu().numpy())
         for j in range(self.nconcepts):
             nearest_words = [self.vocab[i] for i in nearest_word_idxs[j, :]]
-            topics.append(nearest_words)
-            self.logger.info('concept %d: %s' % (j + 1, ' '.join(nearest_words)))
-            topic_file.write('concept %d: %s\n' % (j + 1, ' '.join(nearest_words)))
-        topic_file.close()
-        return topics
+            concepts.append(nearest_words)
+        return concepts
 
 
 class DocWindowsDataset(torch.utils.data.Dataset):

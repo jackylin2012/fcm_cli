@@ -20,7 +20,7 @@ def fcm():
 @click.argument('dataset')
 @click.argument('out-dir', type=click.Path(file_okay=False))
 @click.option('--nconcepts', default=5, help="No. of concepts")
-@click.option('--embed-dim', default=50, help="The size of each word/topic embedding vector")
+@click.option('--embed-dim', default=50, help="The size of each word/concept embedding vector")
 @click.option('--vocab-size', default=10000, help="Maximum vocabulary size")
 @click.option('--nnegs', default=5, help="No. of negative samples")
 @click.option('--lam', default=10, help="Dirichlet loss weight")
@@ -31,7 +31,7 @@ def fcm():
 @click.option('--batch', default=20, help="Batch size")
 @click.option('--gpu', default=0, help="CUDA device if CUDA is available")
 @click.option('--inductive', default=True, help="Whether to use inductive mode")
-@click.option('--dropout', default=0.0, help="dropout rate applied on word/topic embedding")
+@click.option('--dropout', default=0.0, help="dropout rate applied on word/concept embedding")
 @click.option('--nepochs', default=10, help="No. of epochs")
 @click.option('--concept-metric', default="dot",
               type=click.Choice(['dot', 'braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation',
