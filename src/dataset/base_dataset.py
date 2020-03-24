@@ -20,33 +20,33 @@ class BaseDataset(object):
         -------
         data : dict
             A dictionary containing the following attributes of the dataset:
-                {
-                    "bow_train": ndarray, shape (n_train_docs, vocab_size)
-                        Training corpus encoded as a bag-of-words matrix, where n_train_docs is the number of documents
-                        in the training set, and vocab_size is the vocabulary size.
-                    "y_train": ndarray, shape (n_train_docs,)
-                        Binary labels in the training set, ndarray with values of 0 or 1.
-                    "bow_test": ndarray, shape (n_test_docs, vocab_size)
-                        Test corpus encoded as a matrix
-                    "y_test": ndarray, shape (n_test_docs,)
-                        Binary labels in the test set, ndarray with values of 0 or 1.
-                    "doc_windows": ndarray, shape (n_windows, windows_size + 3)
-                        Context windows constructed from bow_train. Each row represents a context window, consisting of
-                        the document index of the context window, the encoded target words, the encoded context words,
-                        and the document's label. This can be generated with the helper function `get_windows`.
-                    "vocab" : array-like, shape `vocab_size`
-                        List of all the unique words in the training corpus. The order of this list corresponds
-                        to the columns of the `bow_train` and `bow_test`
-                    "word_counts": ndarray, shape (vocab_size,)
-                        The count of each word in the training documents. The ordering of these counts
-                        should correspond with `vocab`.
-                    "doc_lens" : ndarray, shape (n_train_docs,)
-                        The length of each training document.
-                    "expvars_train" [OPTIONAL] : ndarray, shape (n_train_docs, n_features)
-                        Extra features for making prediction during the training phase
-                    "expvars_test" [OPTIONAL] : ndarray, shape (n_test_docs, n_features)
-                        Extra features for making prediction during the testing phase
-                }
+            {
+                "bow_train": ndarray, shape (n_train_docs, vocab_size)
+                    Training corpus encoded as a bag-of-words matrix, where n_train_docs is the number of documents
+                    in the training set, and vocab_size is the vocabulary size.
+                "y_train": ndarray, shape (n_train_docs,)
+                    Binary labels in the training set, ndarray with values of 0 or 1.
+                "bow_test": ndarray, shape (n_test_docs, vocab_size)
+                    Test corpus encoded as a matrix
+                "y_test": ndarray, shape (n_test_docs,)
+                    Binary labels in the test set, ndarray with values of 0 or 1.
+                "doc_windows": ndarray, shape (n_windows, windows_size + 3)
+                    Context windows constructed from bow_train. Each row represents a context window, consisting of
+                    the document index of the context window, the encoded target words, the encoded context words,
+                    and the document's label. This can be generated with the helper function `get_windows`.
+                "vocab" : array-like, shape `vocab_size`
+                    List of all the unique words in the training corpus. The order of this list corresponds
+                    to the columns of the `bow_train` and `bow_test`
+                "word_counts": ndarray, shape (vocab_size,)
+                    The count of each word in the training documents. The ordering of these counts
+                    should correspond with `vocab`.
+                "doc_lens" : ndarray, shape (n_train_docs,)
+                    The length of each training document.
+                "expvars_train" [OPTIONAL] : ndarray, shape (n_train_docs, n_features)
+                    Extra features for making prediction during the training phase
+                "expvars_test" [OPTIONAL] : ndarray, shape (n_test_docs, n_features)
+                    Extra features for making prediction during the testing phase
+            }
         """
         raise NotImplementedError
 
