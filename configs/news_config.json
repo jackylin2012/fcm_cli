@@ -16,11 +16,11 @@
   "fcm_params": {
     "inductive": [true],
     "inductive_dropout": [0.01],
-    "embed_size": [50],
+    "embed_dim": [50],
     "hidden_size": [100],
     "num_layers": [1],
     "nnegs": [15],
-    "ntopics": [2],
+    "nconcepts": [2],
     "lam": [10],
     "rho": [1000],
     "eta": [1000]

@@ -28,7 +28,7 @@ class NewsDataset(BaseDataset):
         min_df = params.get("min_df", MIN_DF)  # min document frequency of vocabulary, defaults to MIN_DF
         max_df = params.get("max_df", MAX_DF)  # max document frequency of vocabulary, defaults to MAX_DF
         # TODO: add override flag
-        file_name = os.path.join(DATA_DIR, "20_news_group_window_%d.pkl" % (window_size))
+        file_name = os.path.join(DATA_DIR, "20_news_group_w%d_min%.0E_max%.0E.pkl" % (window_size, min_df, max_df))
         if os.path.exists(file_name):
             NewsDataset.data = pickle.load(open(file_name, "rb"))
             return NewsDataset.data

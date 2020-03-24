@@ -46,21 +46,22 @@ def training_thread(device_idx, ds, config):
                 os.makedirs(current_out_dir)
                 with open(os.path.join(current_out_dir, 'params.json'), 'w') as f:
                     json.dump(params, f, sort_keys=True)
-                data_attr = ds.load_data(dataset_params)
+                data_dict = ds.load_data(dataset_params)
             print("Beginning training run on {}... with id {} dataset_params={}, fcm_params={}, fit_params={}".format(
                 device, param_id, dataset_params, fcm_params, fit_params))
             print("Save grid search results to {}".format(os.path.abspath(current_out_dir)))
             start = time.perf_counter()
             if torch.cuda.is_available():
-                fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True)
+                fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True, **fcm_params,
+                                               **data_dict)
             else:
-                fc_miner = FocusedConceptMiner(current_out_dir, file_log=True)
+                fc_miner = FocusedConceptMiner(current_out_dir, file_log=True**fcm_params, **data_dict)
             metrics = fc_miner.fit(**fit_params)
             # fc_miner.visualize()
             end = time.perf_counter()
             run_time = end - start
             del fc_miner
-            del data_attr
+            del data_dict
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             print("WARNING: exception raised while training on {} with dataset_params={}, "
