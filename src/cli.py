@@ -19,32 +19,33 @@ def fcm():
 @fcm.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('dataset')
 @click.argument('out-dir', type=click.Path(file_okay=False))
-@click.option('--nconcepts', default=5, help="No. of concepts")
-@click.option('--embed-dim', default=50, help="The size of each word/concept embedding vector")
-@click.option('--vocab-size', default=10000, help="Maximum vocabulary size")
-@click.option('--nnegs', default=5, help="No. of negative samples")
-@click.option('--lam', default=10, help="Dirichlet loss weight")
-@click.option('--rho', default=100, help="Classification loss weight")
-@click.option('--eta', default=10, help="Diversity loss weight")
-@click.option('--window-size', default=10, help="Word embedding context window size")
-@click.option('--lr', default=0.01, help="Learning rate")
-@click.option('--batch', default=20, help="Batch size")
-@click.option('--gpu', default=0, help="CUDA device if CUDA is available")
-@click.option('--inductive', default=True, help="Whether to use inductive mode")
-@click.option('--dropout', default=0.0, help="dropout rate applied on word/concept embedding")
-@click.option('--nepochs', default=10, help="No. of epochs")
+@click.option('--nconcepts', default=5, help="No. of concepts (default: 5)")
+@click.option('--embed-dim', default=50, help="The size of each word/concept embedding vector (default: 50)")
+@click.option('--vocab-size', default=5000, help="Maximum vocabulary size (default: 5000)")
+@click.option('--nnegs', default=5, help="No. of negative samples (default: 5)")
+@click.option('--lam', default=10, help="Dirichlet loss weight (default: 10)")
+@click.option('--rho', default=100, help="Classification loss weight (default: 100)")
+@click.option('--eta', default=10, help="Diversity loss weight (default: 10)")
+@click.option('--window-size', default=4, help="Word embedding context window size (default: 4)")
+@click.option('--lr', default=0.01, help="Learning rate (default: 0.01)")
+@click.option('--batch', default=20, help="Batch size (default: 20)")
+@click.option('--gpu', default=0, help="GPU device if CUDA is available. Ignored if no CUDA. (default: 0)")
+@click.option('--inductive', default=True, help="Whether to use inductive mode (default: True)")
+@click.option('--dropout', default=0.0, help="dropout rate applied on word/concept embedding (default: 0.0)")
+@click.option('--nepochs', default=10, help="No. of epochs (default: 10)")
 @click.option('--concept-metric', default="dot",
               type=click.Choice(['dot', 'braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation',
                                  'cosine', 'dice', 'euclidean', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis',
                                  'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean',
                                  'sokalmichener', 'sokalsneath', 'sqeuclidean', 'wminkowski', 'yule']),
-              help="Distance metric type")
+              help="Distance metric type (default: 'dot')")
 def train(dataset, nconcepts, out_dir, embed_dim, vocab_size, nnegs, lam, rho, eta,
           window_size, lr, batch, gpu, inductive, dropout, nepochs, concept_metric):
     """Train FCM
 
     DATASET is the name of the dataset to be used. It must be one of the datasets defined in `dataset/`
-        which subclass BaseDataset
+     which subclass BaseDataset.
+
     OUT-DIR is the path to the output directory where the model, results, and visualization will be saved
     """
     dataset_class = get_dataset(dataset)
