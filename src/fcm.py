@@ -141,7 +141,7 @@ class FocusedConceptMiner(nn.Module):
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
         if file_log:
-            logging.basicConfig(filename=os.path.join(out_dir, "train.log"),
+            logging.basicConfig(filename=os.path.join(out_dir, "fcm.log"),
                                 format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
         else:
             logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
@@ -173,8 +173,8 @@ class FocusedConceptMiner(nn.Module):
             self.doc_concept_network = torch.nn.Sequential(*weight_generator_network)
         else:
             self.doc_concept_weights = nn.Embedding(num_embeddings=ndocs,
-                                                  embedding_dim=nconcepts,
-                                                  sparse=False)
+                                                    embedding_dim=nconcepts,
+                                                    sparse=False)
             if doc_concept_probs is not None:
                 self.doc_concept_weights.weight.data = torch.FloatTensor(doc_concept_probs)
             else:
@@ -276,7 +276,7 @@ class FocusedConceptMiner(nn.Module):
         # expand doc_concept_probs vector with explanatory variables
         if self.expvars_train is not None:
             doc_concept_probs = torch.cat((doc_concept_probs, self.expvars_train[doc, :]),
-                                        dim=1)
+                                          dim=1)
         # compose prediction loss
         # [batch_size] = torch.matmul([batch_size, nconcepts], [nconcepts])
         pred_weight = torch.matmul(doc_concept_probs, self.theta)
@@ -337,9 +337,9 @@ class FocusedConceptMiner(nn.Module):
                                                        drop_last=False)
 
         self.to(self.device)
-        train_loss_file = open(os.path.join(self.out_dir, "train_loss.txt"), "w")
-        train_loss_file.write("total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss, "
-                              "avg_div_loss，train_auc, test_auc\n")
+        train_metrics_file = open(os.path.join(self.out_dir, "train_metrics.txt"), "w")
+        train_metrics_file.write("total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss, "
+                                 "avg_div_loss，train_auc, test_auc\n")
 
         # SGD generalizes better: https://arxiv.org/abs/1705.08292
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
@@ -410,8 +410,8 @@ class FocusedConceptMiner(nn.Module):
                         concept_file.write('concept %d: %s\n' % (i + 1, ' '.join(concept_words)))
             metrics = (total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss,
                        avg_diversity_loss, train_auc, test_auc)
-            train_loss_file.write("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n" % metrics)
-            train_loss_file.flush()
+            train_metrics_file.write("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n" % metrics)
+            train_metrics_file.flush()
             results.append(metrics)
             if (epoch + 1) % save_epochs == 0:
                 torch.save(self.state_dict(), os.path.join(self.out_dir, str(epoch + 1) + ".slda2vec.pytorch"))
