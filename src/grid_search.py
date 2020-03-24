@@ -91,8 +91,6 @@ def grid_search(config_path):
     with open(config_path, "r") as f:
         config = json.load(f)
     global gpus, out_dir, results, devices
-
-    mode = config["mode"]
     out_dir = config["out_dir"]
     max_threads = config["max_threads"]
     if torch.cuda.is_available():
@@ -114,20 +112,11 @@ def grid_search(config_path):
                                        + ["fit." + k for k in fit_params.keys()])
     dataset_params_len = len(dataset_params.keys())
     fcm_params_len = len(fcm_params.keys())
-    if mode == "product":
-        # in "product" mode, generate every possible combinations of all possible dataset_params and fcm_params
-        combos = [(dict(zip(dataset_params.keys(), values[:dataset_params_len])),
-                   dict(zip(fcm_params.keys(), values[dataset_params_len:dataset_params_len + fcm_params_len])),
-                   dict(zip(fit_params.keys(), values[dataset_params_len + fcm_params_len:])))
-                  for values in itertools.product(*dataset_params.values(), *fcm_params.values(), *fit_params.values())]
-    elif mode == "zip":
-        # in "zip" mode, zip all dataset_params and fcm_params at same positions
-        combos = [(dict(zip(dataset_params.keys(), values[:dataset_params_len])),
-                   dict(zip(fcm_params.keys(), values[dataset_params_len:dataset_params_len + fcm_params_len])),
-                   dict(zip(fit_params.keys(), values[dataset_params_len + fcm_params_len:])))
-                  for values in zip((*dataset_params.values(), *fcm_params.values(), *fit_params.values()))]
-    else:
-        raise ValueError("Invalid mode \"{}\"".format(mode))
+    # generate every possible combinations of all possible dataset_params and fcm_params
+    combos = [(dict(zip(dataset_params.keys(), values[:dataset_params_len])),
+               dict(zip(fcm_params.keys(), values[dataset_params_len:dataset_params_len + fcm_params_len])),
+               dict(zip(fit_params.keys(), values[dataset_params_len + fcm_params_len:])))
+              for values in itertools.product(*dataset_params.values(), *fcm_params.values(), *fit_params.values())]
     random.shuffle(combos)
     print("Start grid search with %d combos" % len(combos))
     os.makedirs(out_dir, exist_ok=True)

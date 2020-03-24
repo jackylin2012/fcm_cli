@@ -19,7 +19,7 @@ class BaseDataset(object):
         Returns
         -------
         data : dict
-            A dictionary containing the attributes of the dataset as the following:
+            A dictionary containing the following attributes of the dataset:
                 {
                     "bow_train": ndarray, shape (n_train_docs, vocab_size)
                         Training corpus encoded as a bag-of-words matrix, where n_train_docs is the number of documents

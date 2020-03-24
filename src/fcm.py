@@ -23,9 +23,10 @@ np.random.seed(consts.SEED)
 
 class FocusedConceptMiner(nn.Module):
 
-    def __init__(self, out_dir, embed_dim=300, nnegs=15, nconcepts=25, lam=100.0, rho=100.0, eta=1.0, hidden_size=100,
-                 num_layers=1, inductive_dropout=0.01, doc_concept_probs=None, word_vectors=None, theta=None, gpu=None,
-                 inductive=True, bow_train=None, y_train=None, bow_test=None, y_test=None, doc_windows=None, vocab=None,
+    def __init__(self, out_dir, embed_dim=300, nnegs=15, nconcepts=25, lam=100.0, rho=100.0, eta=1.0,
+                 doc_concept_probs=None, word_vectors=None, theta=None, gpu=None,
+                 inductive=True, inductive_dropout=0.01, hidden_size=100, num_layers=1,
+                 bow_train=None, y_train=None, bow_test=None, y_test=None, doc_windows=None, vocab=None,
                  word_counts=None, doc_lens=None, expvars_train=None, expvars_test=None, file_log=False):
         """A class representing a Focused Concept Miner which can mine concepts from unstructured text data while
         making high accuracy predictions with the mined concepts and optional structured data.
@@ -33,7 +34,7 @@ class FocusedConceptMiner(nn.Module):
         Parameters
         ----------
         out_dir : str
-            The directory to save outputs from this instance
+            The directory to save output files from this instance
         embed_dim : int
             The size of each word/concept embedding vector
         nnegs : int
@@ -41,11 +42,11 @@ class FocusedConceptMiner(nn.Module):
         nconcepts : int
             The number of concepts
         lam : float
-            Dirichlet loss weight
+            Dirichlet loss weight. The higher, the more sparse is the concept distribution of each document
         rho : float
-            Classification loss weight
+            Prediction loss weight. The higher, the more does the model focus on prediction accuracy
         eta : float
-            Diversity loss weight
+            Diversity loss weight. The higher, the more different are the concept vectors from each other
         doc_concept_probs [OPTIONAL] : ndarray, shape (n_train_docs, n_concepts)
             Pretrained concept distribution of each training document
         word_vectors [OPTIONAL] : ndarray, shape (vocab_size, embed_dim)
@@ -56,7 +57,14 @@ class FocusedConceptMiner(nn.Module):
         gpu [OPTIONAL] : int
             CUDA device if CUDA is available
         inductive : bool
-            Whether to use inductive mode
+            Whether to use neural network to inductively predict the concept weights of each document,
+            or use a concept weights embedding
+        inductive_dropout : float
+            The dropout rate of the inductive neural network
+        hidden_size : int
+            The size of the hidden layers in the inductive neural network
+        num_layers : int
+            The number of layers in the inductive neural network
         bow_train : ndarray, shape (n_train_docs, vocab_size)
             Training corpus encoded as a bag-of-words matrix, where n_train_docs is the number of documents
             in the training set, and vocab_size is the vocabulary size.
@@ -90,6 +98,10 @@ class FocusedConceptMiner(nn.Module):
         vocab_size = bow_train.shape[1]
         self.out_dir = out_dir
         os.makedirs(out_dir, exist_ok=True)
+        self.concept_dir = os.path.join(out_dir, "concept")
+        os.makedirs(self.concept_dir, exist_ok=True)
+        self.model_dir = os.path.join(out_dir, "model")
+        os.makedirs(self.model_dir, exist_ok=True)
         self.embed_dim = embed_dim
         self.nnegs = nnegs
         self.nconcepts = nconcepts
@@ -141,7 +153,9 @@ class FocusedConceptMiner(nn.Module):
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
         if file_log:
-            logging.basicConfig(filename=os.path.join(out_dir, "fcm.log"),
+            log_path = os.path.join(out_dir, "fcm.log")
+            print("Saving logs in the file " + log_path)
+            logging.basicConfig(filename=log_path,
                                 format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
         else:
             logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
@@ -314,9 +328,9 @@ class FocusedConceptMiner(nn.Module):
         lr : float
             Learning rate
         nepochs : int
-            Number of training epochs
+            The number of training epochs
         pred_only_epochs : int
-            Number of epochs optimized with prediction loss only
+            The number of epochs optimized with prediction loss only
         batch_size : int
             Batch size
         weight_decay : float
@@ -345,7 +359,6 @@ class FocusedConceptMiner(nn.Module):
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
         nwindows = len(self.train_dataset)
         results = []
-        lowest_diversity_loss = np.inf
         for epoch in range(nepochs):
             total_sgns_loss = 0.0
             total_dirichlet_loss = 0.0
@@ -400,23 +413,19 @@ class FocusedConceptMiner(nn.Module):
             self.logger.info("Prediction loss: %.4f" % avg_pred_loss)
             self.logger.info("Diversity loss: %.4f" % avg_diversity_loss)
             concepts = self.get_concept_words(top_k=5)
-            for i, concept_words in enumerate(concepts):
-                self.logger.info('concept %d: %s' % (i + 1, ' '.join(concept_words)))
-            if avg_diversity_loss < lowest_diversity_loss:
-                lowest_diversity_loss = avg_diversity_loss
-                self.logger.info("Updates lowest diversity loss to %.4f. Save concept words." % avg_diversity_loss)
-                with open(os.path.join(self.out_dir, "concept_words_%d.txt" % epoch), "w") as concept_file:
-                    for i, concept_words in enumerate(concepts):
-                        concept_file.write('concept %d: %s\n' % (i + 1, ' '.join(concept_words)))
+            with open(os.path.join(self.concept_dir, "epoch%d.txt" % epoch), "w") as concept_file:
+                for i, concept_words in enumerate(concepts):
+                    self.logger.info('concept %d: %s' % (i + 1, ' '.join(concept_words)))
+                    concept_file.write('concept %d: %s\n' % (i + 1, ' '.join(concept_words)))
             metrics = (total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss,
                        avg_diversity_loss, train_auc, test_auc)
             train_metrics_file.write("%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n" % metrics)
             train_metrics_file.flush()
             results.append(metrics)
             if (epoch + 1) % save_epochs == 0:
-                torch.save(self.state_dict(), os.path.join(self.out_dir, str(epoch + 1) + ".slda2vec.pytorch"))
+                torch.save(self.state_dict(), os.path.join(self.model_dir, "epoch%d.pytorch" % (epoch + 1)))
 
-        torch.save(self.state_dict(), os.path.join(self.out_dir, "slda2vec.pytorch"))
+        torch.save(self.state_dict(), os.path.join(self.model_dir, "epoch%d.pytorch" % nepochs))
         return np.array(results)
 
     def calculate_auc(self, split, X, y, expvars):

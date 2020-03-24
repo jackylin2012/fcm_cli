@@ -14,76 +14,141 @@ pip install --editable .
 ```
 
 ## Quickstart
-
    * View help info `fcm --help`
-   * Train with 20 News Group dataset with default parameters and save the model, results, and visualization 
-   html in the folder "run0": ```fcm train news_group run0```
-   * Start grid search for 20 News Group dataset with an example hyperparameter search space configuration: ```fcm grid-search ../configs/news_config.json```
+   * Train with 20 News Group dataset with default hyperparameters and save the outputs in folder "run0":
+    `fcm train news_group run0`. When this command starts running, logs will be saved in `run0/fcm.log`.
+   Metrics from each epoch will be written in `run0/train_metrics.txt`. Concept words will be saved in files
+    `run0/concept/eopch*.txt` for each epoch. The state of the model will be saved every 10 epochs and at the last
+     epoch in `run0/model/eopch*.pytorch`. A visualization of the concepts will be stored in `run0/visualization.html`.
+   More options of this command can be seen with `fcm train --help`. 
+   * Start grid search with an example hyperparameter search space configuration for 20 News Group dataset: 
+   `fcm grid-search ../configs/news_config.json`. The grid search results will be saved in `../grid_search/news/run0`
+   according to the `"out_dir"` specified in `fcm_cli/configs/news_config.json`. Under `../grid_search/news/run0`, 
+   there will be directories named with the hash value of each set of the hyperparameters being searched, such as 
+   `../grid_search/news/run0/0f735f978246aa65aa1806299869978c`. Within each of these directories, there are also log
+   file `fcm.log`, metrics file `train_metrics.txt`, concept words `concept/eopch*.txt`, and saved models 
+   `model/eopch*.pytorch`. The best metrics of each set of hyperparameters done with training are stored in
+    `../grid_search/news/run0/results.csv`.
 
 ## Usage
    * Usage of `fcm train`:
    ```text
-Usage: fcm train [OPTIONS] DATASET OUT_DIR
+  Train FCM
 
   DATASET is the name of the dataset to be used. It must be one of the
-  datasets defined in `dataset/`     which subclass BaseDataset OUT-DIR is
-  the path to the output directory where the model, results, and
+  datasets defined in `fcm_cli/src/dataset/` which is a subclass of BaseDataset.
+
+  OUT-DIR is the path to the output directory where the model, results, and
   visualization will be saved
 
 Options:
-  --nconcepts INTEGER             No. of concepts
+  --nconcepts INTEGER             No. of concepts (default: 5)
   --embed-dim INTEGER             The size of each word/concept embedding
-                                  vector
-  --vocab-size INTEGER            Maximum vocabulary size
-  --nnegs INTEGER                 No. of negative samples
-  --lam INTEGER                   Dirichlet loss weight
-  --rho INTEGER                   Classification loss weight
-  --eta INTEGER                   Diversity loss weight
-  --window-size INTEGER           Word embedding context window size
-  --lr FLOAT                      Learning rate
-  --batch INTEGER                 Batch size
-  --gpu INTEGER                   CUDA device if CUDA is available
-  --inductive TEXT                Whether to use inductive mode
-  --dropout FLOAT                 dropout rate applied on word/concept
-                                  embedding
+                                  vector (default: 50)
 
-  --nepochs INTEGER               No. of epochs
-  --concept-metric [dot|braycurtis|canberra|chebyshev|cityblock|correlation|cosine|dice|euclidean|hamming|jaccard|kulsinski|mahalanobis|matching|minkowski|rogerstanimoto|russellrao|seuclidean|sokalmichener|sokalsneath|sqeuclidean|wminkowski|yule]
-                                  Distance metric type
+  --vocab-size INTEGER            Maximum vocabulary size (default: 5000)
+  --nnegs INTEGER                 No. of negative samples (default: 5)
+  --lam INTEGER                   Dirichlet loss weight (default: 10)
+  --rho INTEGER                   Prediction loss weight (default: 100)
+  --eta INTEGER                   Diversity loss weight (default: 10)
+  --window-size INTEGER           Word embedding context window size (default:
+                                  4)
+
+  --lr FLOAT                      Learning rate (default: 0.01)
+  --batch INTEGER                 Batch size (default: 20)
+  --gpu INTEGER                   GPU device if CUDA is available. Ignored if
+                                  no CUDA. (default: 0)
+
+  --inductive TEXT                Whether to use inductive mode (default:
+                                  True)
+
+  --dropout FLOAT                 dropout rate applied on word/concept
+                                  embedding (default: 0.0)
+
+  --nepochs INTEGER               No. of epochs (default: 10)
+  --concept-dist                  Concept vectors distance metric. Choices: ['dot'|'correlation'|'cosine'|'euclidean'|'hamming'] (default: 'dot')
   -h, --help                      Show this message and exit.
 ```
-   * The following is a commented version of the example configuration `fcm_cli/configs/news_config.json`:
-   
-   ```json
+   * Usage of `fcm grid-search`:
+```
+Usage: fcm grid-search [OPTIONS] CONFIG
+
+  Perform grid search with the given configuration
+
+  CONFIG is the path of the config file
+
+Options:
+  -h, --help  Show this message and exit.
+```
+   * The configuration file for grid search is required. All of the possible fields of the configuration are 
+   listed below with comments. Notice that values in `"dataset_params"`, `"fcm_params"`, and `"fit_params"` must be 
+   lists. During grid search, every possible combination of the values in these lists will be tried. The original 
+   configuration file can be found at `fcm_cli/configs/news_config.json`.
+```
 {
-  "dataset": "news_group",
-  "mode": "product",
-  "gpus": [0],
-  "max_threads": 1,
-  "out_dir": "../grid_search/news/run0",
-  "dataset_params": {
-    "window_size": [4],
-    "min_df": [0.01],
-    "max_df": [0.8]
-  },
-  "fcm_params": {
-    "inductive": [true],
-    "inductive_dropout": [0.01],
-    "embed_dim": [50],
-    "hidden_size": [100],
-    "num_layers": [1],
-    "nnegs": [15],
-    "nconcepts": [2],
-    "lam": [10],
-    "rho": [1000],
-    "eta": [1000]
-  },
-  "fit_params": {
-    "lr": [0.01],
-    "nepochs": [30],
-    "pred_only_epochs": [15],
-    "batch_size": [10240],
-    "grad_clip": [1024]
-  }
+      "dataset": "news_group", # the name of the dataset to be used. It must be one of the datasets 
+                               # defined in `fcm_cli/src/dataset/` which is a subclass of BaseDataset. 
+                               # The existing options are "news_group", "wcai", and "prosper_loan".
+      "gpus": [0],  # list of GPU devices if CUDA is available. Ignored if no CUDA.
+      "max_threads": 1, # max number of parallel threads to run grid search
+      "out_dir": "../grid_search/news/run0", # the directory to save grid search output files
+      "dataset_params": { # hyperparameters for loading 20 News Group dataset
+        "window_size": [4], # context window size for training word embedding
+        "min_df": [0.01], # min document frequency of vocabulary
+        "max_df": [0.8] # max document frequency of vocabulary
+      },
+      "fcm_params": { # hyperparameters for creating FocusedConceptMiner instances
+        "embed_dim": [50], # the size of each word/concept embedding vector
+        "nnegs": [15], # the number of negative context words to be sampled during the training of word embeddings
+        "nconcepts": [2], # the number of concepts
+        "lam": [10, 100], # Dirichlet loss weight. The higher, the more sparse is the concept distribution of each document 
+        "rho": [100, 1000], # Prediction loss weight. The higher, the more does the model focus on Prediction accuracy
+        "eta": [100, 1000], # Diversity loss weight. The higher, the more different are the concept vectors from each other
+        "inductive": [true], # whether to use neural network to inductively predict the concept weights of each document,
+                             # or use a concept weights embedding
+        "inductive_dropout": [0.01], # the dropout rate of the inductive neural network
+        "hidden_size": [100], # the size of the hidden layers in the inductive neural network
+        "num_layers": [1] # he number of layers in the inductive neural network
+      },
+      "fit_params": { # hyperparameters for training the FocusedConceptMiner
+        "lr": [0.01, 0.001], # learning rate
+        "nepochs": [30], # the number of training epochs
+        "pred_only_epochs": [15], # the number of epochs optimized with prediction loss only
+        "batch_size": [1024, 10000], # batch size
+        "grad_clip": [1024] # maximum gradients magnitude. Gradients will be clipped within the range [-grad_clip, grad_clip]
+      }
+}
+```
+   * You can also choose to implement your own dataset under `fcm_cli/dataset`. It must be a subclass of 
+   `dataset.base_dataset.BaseDataset` and implement the `load_data` method as other datasets `fcm_cli/dataset/wcai.py`, 
+   `fcm_cli/dataset/news_group.py`, and `fcm_cli/dataset/prosper_loan.py`. The `load_data` is required to return 
+   a dictionary containing the following attributes of the dataset:
+   ```
+{
+    "bow_train": ndarray, shape (n_train_docs, vocab_size)
+        Training corpus encoded as a bag-of-words matrix, where n_train_docs is the number of documents
+        in the training set, and vocab_size is the vocabulary size.
+    "y_train": ndarray, shape (n_train_docs,)
+        Binary labels in the training set, ndarray with values of 0 or 1.
+    "bow_test": ndarray, shape (n_test_docs, vocab_size)
+        Test corpus encoded as a matrix
+    "y_test": ndarray, shape (n_test_docs,)
+        Binary labels in the test set, ndarray with values of 0 or 1.
+    "doc_windows": ndarray, shape (n_windows, windows_size + 3)
+        Context windows constructed from bow_train. Each row represents a context window, consisting of
+        the document index of the context window, the encoded target words, the encoded context words,
+        and the document's label. This can be generated with the helper function `get_windows`.
+    "vocab" : array-like, shape `vocab_size`
+        List of all the unique words in the training corpus. The order of this list corresponds
+        to the columns of the `bow_train` and `bow_test`
+    "word_counts": ndarray, shape (vocab_size,)
+        The count of each word in the training documents. The ordering of these counts
+        should correspond with `vocab`.
+    "doc_lens" : ndarray, shape (n_train_docs,)
+        The length of each training document.
+    "expvars_train" [OPTIONAL] : ndarray, shape (n_train_docs, n_features)
+        Extra features for making prediction during the training phase
+    "expvars_test" [OPTIONAL] : ndarray, shape (n_test_docs, n_features)
+        Extra features for making prediction during the testing phase
 }
 ```

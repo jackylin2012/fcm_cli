@@ -1,9 +1,6 @@
 {
   "dataset": "wcai",
-  "mode": "product",
-  "gpus": [
-    0
-  ],
+  "gpus": [0],
   "max_threads": 1,
   "out_dir": "../grid_search/wcai/run0",
   "dataset_params": {
