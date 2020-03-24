@@ -39,9 +39,9 @@ def training_thread(device_idx, ds, config):
         try:
             with lock:
                 current_out_dir = os.path.join(out_dir, param_id)
-                if os.path.exists(current_out_dir):
-                    # TODO: better handling
-                    print("id {} has already been run, skip...".format(param_id))
+                result_file = os.path.join(current_out_dir, "result.json")
+                if os.path.exists(result_file):
+                    print("Configuration {} has already been run, skip...".format(param_id))
                     continue
                 os.makedirs(current_out_dir)
                 with open(os.path.join(current_out_dir, 'params.json'), 'w') as f:
@@ -52,8 +52,8 @@ def training_thread(device_idx, ds, config):
             print("Save grid search results to {}".format(os.path.abspath(current_out_dir)))
             start = time.perf_counter()
             if torch.cuda.is_available():
-                fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True, **fcm_params,
-                                               **data_dict)
+                fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True,
+                                               **fcm_params, **data_dict)
             else:
                 fc_miner = FocusedConceptMiner(current_out_dir, file_log=True**fcm_params, **data_dict)
             metrics = fc_miner.fit(**fit_params)
@@ -76,6 +76,8 @@ def training_thread(device_idx, ds, config):
                           "total_loss": best_losses[0], "sgns_loss": best_losses[1],
                           "dirichlet_loss": best_losses[2], "pred_loss": best_losses[3], "div_loss": best_losses[4],
                           "train_auc": best_aucs[0], "test_auc": best_aucs[1]}
+            with open(result_file, 'w') as f:
+                json.dump(new_result, f, sort_keys=True)
             with lock:
                 results = results.append(new_result, ignore_index=True)
                 results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
@@ -93,7 +95,6 @@ def grid_search(config_path):
     mode = config["mode"]
     out_dir = config["out_dir"]
     max_threads = config["max_threads"]
-    wait_time = config["wait_time"]
     if torch.cuda.is_available():
         if "gpus" in config.keys():
             gpus = config["gpus"]
@@ -137,7 +138,6 @@ def grid_search(config_path):
     dataset_class = get_dataset(config["dataset"])
     ds = dataset_class()
     for i in range(max_threads):
-        time.sleep((i // len(devices)) * wait_time)
         thread = threading.Thread(target=training_thread, args=(i % len(devices), ds, config))
         thread.setDaemon(True)
         thread.start()

@@ -1,12 +1,8 @@
 {
   "dataset": "news_group",
   "mode": "product",
-  "gpus": [
-    0
-  ],
+  "gpus": [0],
   "max_threads": 1,
-  "max_mem": 5e6,
-  "wait_time": 300,
   "out_dir": "../grid_search/news/run0",
   "dataset_params": {
     "window_size": [4],
