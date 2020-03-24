@@ -27,27 +27,10 @@ queue = Queue()
 lock = threading.Lock()
 
 
-# def available_memory(device):
-#     if device == "cpu" or not torch.cuda.is_available():
-#         return psutil.virtual_memory()[4]
-#     else:
-#         return torch.cuda.get_device_properties(torch.device(device)).total_memory - torch.cuda.memory_allocated(device)
-
 # TODO: multithread result file conflict
 def training_thread(device_idx, ds, config):
     global results
-    max_mem = config["max_mem"]
-    wait_time = config["wait_time"]
-    top_k = config.get("top_k", 10)
-    concept_metric = config.get("concept_metric", "dot")
-
     while not queue.empty():
-        # available_mem = available_memory(devices[device_idx])
-        # while available_mem < max_mem:
-        #     print("Not enough memory left ({} < max_mem={}) on device {}. Sleep for {} secs and retry".format(
-        #         available_mem, max_mem, devices[device_idx], wait_time))
-        #     time.sleep(wait_time)
-        #     device_idx = (device_idx + 1) % len(devices)
         device = devices[device_idx]
         dataset_params, fcm_params, fit_params = queue.get_nowait()
         params = {"dataset": dataset_params, "fcm": fcm_params, "fit": fit_params}
@@ -69,13 +52,11 @@ def training_thread(device_idx, ds, config):
             print("Save grid search results to {}".format(os.path.abspath(current_out_dir)))
             start = time.perf_counter()
             if torch.cuda.is_available():
-                fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True, **fcm_params,
-                                               **data_attr)
+                fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True)
             else:
-                fc_miner = FocusedConceptMiner(current_out_dir, file_log=True, **fcm_params, **data_attr)
+                fc_miner = FocusedConceptMiner(current_out_dir, file_log=True)
             metrics = fc_miner.fit(**fit_params)
             # fc_miner.visualize()
-            fc_miner.get_concept_words(top_k, concept_metric)
             end = time.perf_counter()
             run_time = end - start
             del fc_miner
@@ -84,7 +65,6 @@ def training_thread(device_idx, ds, config):
             traceback.print_exc(file=sys.stdout)
             print("WARNING: exception raised while training on {} with dataset_params={}, "
                   "fcm_params={}, fit_params={}".format(device, dataset_params, fcm_params, fit_params))
-            queue.put((dataset_params, fcm_params, fit_params))
         else:
             best_losses = metrics[:, :-2].min(axis=0)
             best_aucs = metrics[:, -2:].max(axis=0)

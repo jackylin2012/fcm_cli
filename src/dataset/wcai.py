@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
 
-from dataset.base_dataset import BaseDataset, encode_documents
+from dataset.base_dataset import BaseDataset, get_data_dict
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(os.path.abspath(os.path.join(CURRENT_DIR, os.pardir, os.pardir)), "data", "wcai")
@@ -38,19 +38,7 @@ class WcaiDataset(BaseDataset):
             return WcaiDataset.data
 
         vectorizer = CountVectorizer(min_df=min_df, max_df=max_df)
-        X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, expvars_train = \
-            encode_documents(vectorizer, window_size, self.doc_train, self.y_train, self.doc_test, self.expvars_train)
-        data = {
-            "doc_windows": doc_windows_train,
-            "word_counts": wordcounts_train,
-            "doc_lens": doc_lens,
-            "X_train": X_train,
-            "y_train": y_train,
-            "X_test": X_test,
-            "y_test": self.y_test,
-            "vocab": vocab,
-            "expvars_train": expvars_train,
-            "expvars_test": self.expvars_test
-        }
+        data = get_data_dict(vectorizer, window_size, self.doc_train, self.y_train, self.doc_test, self.y_test,
+                             self.expvars_train, self.expvars_test)
         pickle.dump(data, open(file_name, "wb"))
         return data

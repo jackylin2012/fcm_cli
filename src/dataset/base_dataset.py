@@ -21,31 +21,31 @@ class BaseDataset(object):
         data : dict
             A dictionary containing the attributes of the dataset as the following:
                 {
-                    "X_train": ndarray, shape (n_train_docs, vocab_size)
-                        Training corpus encoded as a matrix, where n_train_docs is the number of documents
+                    "bow_train": ndarray, shape (n_train_docs, vocab_size)
+                        Training corpus encoded as a bag-of-words matrix, where n_train_docs is the number of documents
                         in the training set, and vocab_size is the vocabulary size.
                     "y_train": ndarray, shape (n_train_docs,)
                         Binary labels in the training set, ndarray with values of 0 or 1.
-                    "X_test": ndarray, shape (n_test_docs, vocab_size)
+                    "bow_test": ndarray, shape (n_test_docs, vocab_size)
                         Test corpus encoded as a matrix
                     "y_test": ndarray, shape (n_test_docs,)
                         Binary labels in the test set, ndarray with values of 0 or 1.
                     "doc_windows": ndarray, shape (n_windows, windows_size + 3)
-                        Context windows constructed from X_train. Each row represents a context window, consisting of
+                        Context windows constructed from bow_train. Each row represents a context window, consisting of
                         the document index of the context window, the encoded target words, the encoded context words,
                         and the document's label. This can be generated with the helper function `get_windows`.
                     "vocab" : array-like, shape `vocab_size`
                         List of all the unique words in the training corpus. The order of this list corresponds
-                        to the columns of the `X_train` and `X_test`
+                        to the columns of the `bow_train` and `bow_test`
                     "word_counts": ndarray, shape (vocab_size,)
                         The count of each word in the training documents. The ordering of these counts
                         should correspond with `vocab`.
                     "doc_lens" : ndarray, shape (n_train_docs,)
                         The length of each training document.
                     "expvars_train" [OPTIONAL] : ndarray, shape (n_train_docs, n_features)
-                        Extra features for training documents
+                        Extra features for making prediction during the training phase
                     "expvars_test" [OPTIONAL] : ndarray, shape (n_test_docs, n_features)
-                        Extra features for test documents
+                        Extra features for making prediction during the testing phase
                 }
         """
         raise NotImplementedError
@@ -55,10 +55,10 @@ def filter_list(original, include):
     return [original[i] for i in range(len(include)) if include[i]]
 
 
-def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expvars_train=None):
+def get_data_dict(vectorizer, window_size, doc_train, y_train, doc_test, y_test, expvars_train=None, expvars_test=None):
     analyze = vectorizer.build_analyzer()
-    X_train = vectorizer.fit_transform(doc_train).toarray()
-    document_lengths_train = X_train.sum(axis=1)
+    bow_train = vectorizer.fit_transform(doc_train).toarray()
+    document_lengths_train = bow_train.sum(axis=1)
     valid_docs = document_lengths_train >= window_size + 1
     document_lengths_train = document_lengths_train[valid_docs]
     encoded_documents_train = [[vectorizer.vocabulary_.get(word)
@@ -66,15 +66,26 @@ def encode_documents(vectorizer, window_size, doc_train, y_train, doc_test, expv
                                 if vectorizer.vocabulary_.get(word) is not None]
                                for document in doc_train]
     encoded_documents_train = filter_list(encoded_documents_train, valid_docs)
-    X_train = X_train[valid_docs]
+    bow_train = bow_train[valid_docs]
     y_train = np.array(y_train)[valid_docs]
-    X_test = vectorizer.transform(doc_test).toarray()
+    bow_test = vectorizer.transform(doc_test).toarray()
     if expvars_train is not None:
         expvars_train = expvars_train[valid_docs]
-    wordcounts_train = X_train.sum(axis=0)
+    wordcounts_train = bow_train.sum(axis=0)
     doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
-    return X_train, y_train, X_test, wordcounts_train, document_lengths_train, vectorizer.get_feature_names(), \
-           doc_windows_train, expvars_train
+    data = {
+        "doc_windows": doc_windows_train,
+        "word_counts": wordcounts_train,
+        "doc_lens": document_lengths_train,
+        "bow_train": bow_train,
+        "y_train": y_train,
+        "bow_test": bow_test,
+        "y_test": y_test,
+        "vocab": vectorizer.get_feature_names(),
+        "expvars_train": expvars_train,
+        "expvars_test": expvars_test
+    }
+    return data
 
 
 def get_windows(encoded_docs, labels, window_size):
@@ -93,7 +104,7 @@ def get_windows(encoded_docs, labels, window_size):
     Returns
     -------
     doc_windows: ndarray, shape (n_windows, windows_size + 3)
-        Context windows constructed from X_train. Each row represents a context window, consisting of
+        Context windows constructed from bow_train. Each row represents a context window, consisting of
         the document index of the context window, the encoded target words, the encoded context words,
         and the document's label.
     """
