@@ -465,8 +465,8 @@ class FocusedConceptMiner(nn.Module):
             concept_word_dists = concept_word_counts / concept_word_counts.sum(1, True)
             # fill NaN with 1/vocab_size in case a concept has all zero word distribution
             concept_word_dists[concept_word_dists != concept_word_dists] = 1.0 / concept_word_dists.shape[1]
-            vis_data = pyLDAvis.prepare(concept_term_dists=concept_word_dists.data.cpu().numpy(),
-                                        doc_concept_dists=doc_concept_probs.data.cpu().numpy(),
+            vis_data = pyLDAvis.prepare(topic_term_dists=concept_word_dists.data.cpu().numpy(),
+                                        doc_topic_dists=doc_concept_probs.data.cpu().numpy(),
                                         doc_lengths=self.doc_lens, vocab=self.vocab, term_frequency=self.word_counts)
             pyLDAvis.save_html(vis_data, os.path.join(self.out_dir, "visualization.html"))
 
