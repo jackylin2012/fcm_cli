@@ -319,7 +319,7 @@ class FocusedConceptMiner(nn.Module):
         return negative_sampling_loss, dirichlet_loss, pred_loss, div_loss
 
     def fit(self, lr=0.01, nepochs=200, pred_only_epochs=20,
-            batch_size=10, weight_decay=0.01, grad_clip=5, save_epochs=10):
+            batch_size=10, weight_decay=0.01, grad_clip=5, save_epochs=10, concept_dist="dot"):
         """
         Train the FCM model
 
@@ -339,6 +339,8 @@ class FocusedConceptMiner(nn.Module):
             Maximum gradients magnitude. Gradients will be clipped within the range [-grad_clip, grad_clip]
         save_epochs : int
             The number of epochs in between saving the model weights
+        concept_dist: str
+            Concept vectors distance metric. Choices are 'dot', 'correlation', 'cosine', 'euclidean', 'hamming'.
 
         Returns
         -------
@@ -412,7 +414,7 @@ class FocusedConceptMiner(nn.Module):
             self.logger.info("Dirichlet loss: %.4f" % avg_dirichlet_loss)
             self.logger.info("Prediction loss: %.4f" % avg_pred_loss)
             self.logger.info("Diversity loss: %.4f" % avg_diversity_loss)
-            concepts = self.get_concept_words(top_k=5)
+            concepts = self.get_concept_words(top_k=5, concept_dist=concept_dist)
             with open(os.path.join(self.concept_dir, "epoch%d.txt" % epoch), "w") as concept_file:
                 for i, concept_words in enumerate(concepts):
                     self.logger.info('concept %d: %s' % (i + 1, ' '.join(concept_words)))
@@ -471,13 +473,13 @@ class FocusedConceptMiner(nn.Module):
             pyLDAvis.save_html(vis_data, os.path.join(self.out_dir, "visualization.html"))
 
     # TODO: add filtering such as pos and tf
-    def get_concept_words(self, top_k=10, concept_metric='dot'):
+    def get_concept_words(self, top_k=10, concept_dist='dot'):
         concept_embed = self.embedding_t.data.cpu().numpy()
         word_embed = self.embedding_i.weight.data.cpu().numpy()
-        if concept_metric == 'dot':
+        if concept_dist == 'dot':
             dist = -np.matmul(concept_embed, np.transpose(word_embed, (1, 0)))
         else:
-            dist = cdist(concept_embed, word_embed, metric=concept_metric)
+            dist = cdist(concept_embed, word_embed, metric=concept_dist)
         nearest_word_idxs = np.argsort(dist, axis=1)[:, :top_k]  # indices of words with min cosine distance
         concepts = []
         self.logger.info(self.embedding_t.data.cpu().numpy())

@@ -43,7 +43,7 @@ def training_thread(device_idx, ds, config):
                 if os.path.exists(result_file):
                     print("Configuration {} has already been run, skip...".format(param_id))
                     continue
-                os.makedirs(current_out_dir)
+                os.makedirs(current_out_dir, exist_ok=True)
                 with open(os.path.join(current_out_dir, 'params.json'), 'w') as f:
                     json.dump(params, f, sort_keys=True)
                 data_dict = ds.load_data(dataset_params)
@@ -55,7 +55,7 @@ def training_thread(device_idx, ds, config):
                 fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True,
                                                **fcm_params, **data_dict)
             else:
-                fc_miner = FocusedConceptMiner(current_out_dir, file_log=True**fcm_params, **data_dict)
+                fc_miner = FocusedConceptMiner(current_out_dir, file_log=True, **fcm_params, **data_dict)
             metrics = fc_miner.fit(**fit_params)
             # fc_miner.visualize()
             end = time.perf_counter()
