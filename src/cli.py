@@ -52,7 +52,7 @@ def train(dataset, nconcepts, out_dir, embed_dim, vocab_size, nnegs, lam, rho, e
     fcminer = FocusedConceptMiner(out_dir, embed_dim=embed_dim, nnegs=nnegs, nconcepts=nconcepts,
                                   lam=lam, rho=rho, eta=eta, gpu=gpu, file_log=True, inductive=inductive, **data_attr)
     print("Starts training")
-    fcminer.fit(lr=lr, nepochs=nepochs, batch_size=batch)
+    fcminer.fit(lr=lr, nepochs=nepochs, batch_size=batch, concept_dist=concept_dist)
     fcminer.visualize()
     print("Training finished. See results in " + out_dir)
 
