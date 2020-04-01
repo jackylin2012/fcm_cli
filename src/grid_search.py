@@ -69,19 +69,20 @@ def training_thread(device_idx, ds, config):
         else:
             best_losses = metrics[:, :-2].min(axis=0)
             best_aucs = metrics[:, -2:].max(axis=0)
+            best_metrics = {"id": param_id, "run_time": run_time,
+                            "total_loss": best_losses[0], "sgns_loss": best_losses[1],
+                            "dirichlet_loss": best_losses[2], "pred_loss": best_losses[3], "div_loss": best_losses[4],
+                            "train_auc": best_aucs[0], "test_auc": best_aucs[1]}
             new_result = {**{"dataset." + k: v for k, v in dataset_params.items()},
                           **{"fcm." + k: v for k, v in fcm_params.items()},
                           **{"fit." + k: v for k, v in fit_params.items()},
-                          "id": param_id, "run_time": run_time,
-                          "total_loss": best_losses[0], "sgns_loss": best_losses[1],
-                          "dirichlet_loss": best_losses[2], "pred_loss": best_losses[3], "div_loss": best_losses[4],
-                          "train_auc": best_aucs[0], "test_auc": best_aucs[1]}
+                          **best_metrics}
             with open(result_file, 'w') as f:
                 json.dump(new_result, f, sort_keys=True)
             with lock:
                 results = results.append(new_result, ignore_index=True)
                 results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
-            print("Training run complete, results:", new_result)
+            print("Training run complete, results:", best_metrics)
         torch.cuda.empty_cache()
         gc.collect()
         queue.task_done()

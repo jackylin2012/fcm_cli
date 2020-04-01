@@ -154,7 +154,7 @@ class FocusedConceptMiner(nn.Module):
             logging.root.removeHandler(handler)
         if file_log:
             log_path = os.path.join(out_dir, "fcm.log")
-            print("Saving logs in the file " + log_path)
+            print("Saving logs in the file " + os.path.abspath(log_path))
             logging.basicConfig(filename=log_path,
                                 format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
         else:
@@ -482,7 +482,6 @@ class FocusedConceptMiner(nn.Module):
             dist = cdist(concept_embed, word_embed, metric=concept_dist)
         nearest_word_idxs = np.argsort(dist, axis=1)[:, :top_k]  # indices of words with min cosine distance
         concepts = []
-        self.logger.info(self.embedding_t.data.cpu().numpy())
         for j in range(self.nconcepts):
             nearest_words = [self.vocab[i] for i in nearest_word_idxs[j, :]]
             concepts.append(nearest_words)
