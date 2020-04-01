@@ -19,44 +19,42 @@ def fcm():
 @fcm.command(context_settings=CONTEXT_SETTINGS)
 @click.argument('dataset')
 @click.argument('out-dir', type=click.Path(file_okay=False))
-@click.option('--ntopics', default=5, help="No. of topics")
-@click.option('--embed-size', default=50, help="Word/topic embedding size")
-@click.option('--vocab-size', default=10000, help="Maximum vocabulary size")
-# TODO: use pretrained embedding
-@click.option('--pretrained-embed', type=str, default=None, help="Pretrained word embedding path")
-@click.option('--nnegs', default=5, help="No. of negative samples")
-@click.option('--lam', default=10, help="Dirichlet loss weight")
-@click.option('--rho', default=100, help="Classification loss weight")
-@click.option('--eta', default=10, help="Diversity loss weight")
-@click.option('--window-size', default=10, help="Word embedding context window size")
-@click.option('--lr', default=0.001, help="Learning rate")
-@click.option('--batch', default=20, help="Batch size")
-@click.option('--gpu', default=0, help="CUDA device if CUDA is available")
-@click.option('--dropout', default=0.0, help="dropout rate applied on word/topic embedding")
-@click.option('--nepochs', default=10, help="No. of epochs")
-@click.option('--top-k', default=10, help="No. of most similar words to represent concepts")
-@click.option('--concept-metric', default="dot",
-              type=click.Choice(['dot', 'braycurtis', 'canberra', 'chebyshev', 'cityblock', 'correlation',
-                                 'cosine', 'dice', 'euclidean', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis',
-                                 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean',
-                                 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'wminkowski', 'yule']),
-              help="Distance metric type")
-def train(dataset, ntopics, out_dir, embed_size, vocab_size, pretrained_embed, nnegs, lam, rho, eta,
-          window_size, lr, batch, gpu, dropout, nepochs, top_k, concept_metric):
+@click.option('--nconcepts', default=5, help="No. of concepts (default: 5)")
+@click.option('--embed-dim', default=50, help="The size of each word/concept embedding vector (default: 50)")
+@click.option('--vocab-size', default=5000, help="Maximum vocabulary size (default: 5000)")
+@click.option('--nnegs', default=5, help="No. of negative samples (default: 5)")
+@click.option('--lam', default=10, help="Dirichlet loss weight (default: 10)")
+@click.option('--rho', default=100, help="Prediction loss weight (default: 100)")
+@click.option('--eta', default=10, help="Diversity loss weight (default: 10)")
+@click.option('--window-size', default=4, help="Word embedding context window size (default: 4)")
+@click.option('--lr', default=0.01, help="Learning rate (default: 0.01)")
+@click.option('--batch', default=20, help="Batch size (default: 20)")
+@click.option('--gpu', default=0, help="GPU device if CUDA is available. Ignored if no CUDA. (default: 0)")
+@click.option('--inductive', default=True, help="Whether to use inductive mode (default: True)")
+@click.option('--dropout', default=0.0, help="dropout rate applied on word/concept embedding (default: 0.0)")
+@click.option('--nepochs', default=10, help="No. of epochs (default: 10)")
+@click.option('--concept-dist', default="dot",
+              type=click.Choice(['dot', 'correlation', 'cosine', 'euclidean', 'hamming']),
+              help="Concept vectors distance metric (default: 'dot')")
+def train(dataset, nconcepts, out_dir, embed_dim, vocab_size, nnegs, lam, rho, eta,
+          window_size, lr, batch, gpu, inductive, dropout, nepochs, concept_dist):
     """Train FCM
 
-    DATASET is the name of the dataset to be used. It must be one of the datasets defined in `dataset/`
-        which subclass BaseDataset
+    DATASET is the name of the dataset to be used. It must be one of the datasets defined in `fcm_cli/src/dataset/`
+    which is a subclass of BaseDataset.
+
     OUT-DIR is the path to the output directory where the model, results, and visualization will be saved
     """
     dataset_class = get_dataset(dataset)
     ds = dataset_class()
+    print("Loading data...")
     data_attr = ds.load_data({"vocab_size": vocab_size, "window_size": window_size})
-    fcminer = FocusedConceptMiner(out_dir, embed_size=embed_size, nnegs=nnegs,
-                              ntopics=ntopics, lam=lam, rho=rho, eta=eta, gpu=gpu,  **data_attr)
-    fcminer.fit(lr=lr, nepochs=nepochs, batch_size=batch)
+    fcminer = FocusedConceptMiner(out_dir, embed_dim=embed_dim, nnegs=nnegs, nconcepts=nconcepts,
+                                  lam=lam, rho=rho, eta=eta, gpu=gpu, file_log=True, inductive=inductive, **data_attr)
+    print("Starts training")
+    fcminer.fit(lr=lr, nepochs=nepochs, batch_size=batch, concept_dist=concept_dist)
     fcminer.visualize()
-    fcminer.get_concept_words(top_k, concept_metric)
+    print("Training finished. See results in " + out_dir)
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)

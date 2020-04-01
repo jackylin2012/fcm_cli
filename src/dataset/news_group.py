@@ -1,13 +1,13 @@
 import os
-import pickle
 
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import CountVectorizer
 
-from dataset.base_dataset import BaseDataset, encode_documents
+from dataset.base_dataset import BaseDataset
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(os.path.abspath(os.path.join(CURRENT_DIR, os.pardir, os.pardir)), "data", "news_group")
+os.makedirs(DATA_DIR, exist_ok=True)
 MIN_DF = 0.01
 MAX_DF = 0.8
 
@@ -18,35 +18,12 @@ class NewsDataset(BaseDataset):
                                               categories=["alt.atheism", "comp.graphics"])
         newsgroups_test = fetch_20newsgroups(subset='test', shuffle=True, remove=("headers", "footers", "quotes"),
                                              categories=["alt.atheism", "comp.graphics"])
-        self.doc_train = newsgroups_train.data
-        self.y_train = newsgroups_train.target
-        self.doc_test = newsgroups_test.data
-        self.y_test = newsgroups_test.target
+        super().__init__(newsgroups_train.data, newsgroups_test.data, newsgroups_train.target, newsgroups_test.target)
 
     def load_data(self, params):
         window_size = params["window_size"]  # context window size
         min_df = params.get("min_df", MIN_DF)  # min document frequency of vocabulary, defaults to MIN_DF
         max_df = params.get("max_df", MAX_DF)  # max document frequency of vocabulary, defaults to MAX_DF
-        # TODO: add override flag
-        file_name = os.path.join(DATA_DIR, "20_news_group_window_%d.pkl" % (window_size))
-        if os.path.exists(file_name):
-            NewsDataset.data = pickle.load(open(file_name, "rb"))
-            return NewsDataset.data
-
+        filename = os.path.join(DATA_DIR, "20_news_group_w%d_min%.0E_max%.0E.pkl" % (window_size, min_df, max_df))
         vectorizer = CountVectorizer(min_df=min_df, max_df=max_df)
-        X_train, y_train, X_test, wordcounts_train, doc_lens, vocab, doc_windows_train, _ = \
-            encode_documents(vectorizer, window_size, self.doc_train, self.y_train, self.doc_test)
-
-        data = {
-            "doc_windows": doc_windows_train,
-            "word_counts": wordcounts_train,
-            "doc_lens": doc_lens,
-            "X_train": X_train,
-            "y_train": y_train,
-            "X_test": X_test,
-            "y_test": self.y_test,
-            "vocab": vocab
-        }
-        os.makedirs(DATA_DIR, exist_ok=True)
-        pickle.dump(data, open(file_name, "wb"))
-        return data
+        return self.get_data_dict(filename, vectorizer, window_size)
