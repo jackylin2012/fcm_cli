@@ -296,9 +296,6 @@ class FocusedConceptMiner(nn.Module):
         pred_weight = torch.matmul(doc_concept_probs, self.theta)
         pred_loss = F.binary_cross_entropy_with_logits(pred_weight, labels,
                                                        weight=w, reduction='none')
-        if torch.isnan(pred_loss).sum() > 0:
-            import pdb
-            pdb.set_trace()
         pred_loss *= self.rho
         pred_loss = pred_loss.mean()
 
