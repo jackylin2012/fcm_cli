@@ -423,6 +423,10 @@ class FocusedConceptMiner(nn.Module):
             results.append(metrics)
             if (epoch + 1) % save_epochs == 0:
                 torch.save(self.state_dict(), os.path.join(self.model_dir, "epoch%d.pytorch" % (epoch + 1)))
+                with torch.no_grad():
+                    doc_concept_probs = self.get_train_doc_concept_probs()
+                    np.save(os.path.join(self.model_dir, "epoch%d_train_doc_concept_probs.npy" % (epoch + 1)),
+                            doc_concept_probs.cpu().detach().numpy())
 
         torch.save(self.state_dict(), os.path.join(self.model_dir, "epoch%d.pytorch" % nepochs))
         return np.array(results)
@@ -451,13 +455,16 @@ class FocusedConceptMiner(nn.Module):
             pred_proba = pred_weight.sigmoid()
         return pred_proba
 
+    def get_train_doc_concept_probs(self):
+        if self.inductive:
+            doc_concept_weights = self.doc_concept_network(self.bow_train)
+        else:
+            doc_concept_weights = self.doc_concept_weights.weight.data
+        return F.softmax(doc_concept_weights, dim=1)  # convert to probabilities
+
     def visualize(self):
         with torch.no_grad():
-            if self.inductive:
-                doc_concept_weights = self.doc_concept_network(self.bow_train)
-            else:
-                doc_concept_weights = self.doc_concept_weights.weight.data
-            doc_concept_probs = F.softmax(doc_concept_weights, dim=1)  # convert to probabilities
+            doc_concept_probs = self.get_train_doc_concept_probs()
             # [n_concepts, vocab_size] weighted word counts of each concept
             concept_word_counts = torch.matmul(doc_concept_probs.transpose(0, 1), self.bow_train)
             # normalize word counts to word distribution of each concept
