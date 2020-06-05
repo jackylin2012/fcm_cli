@@ -13,6 +13,7 @@ import gc
 import pandas
 import torch
 
+from dataset.csv_dataset import CSVDataset
 from fcm import FocusedConceptMiner
 from toolbox.helper_functions import get_dataset
 
@@ -125,8 +126,11 @@ def grid_search(config_path):
         results = pandas.read_csv(os.path.join(out_dir, "results.csv"))
     for combo in combos:
         queue.put(combo)
-    dataset_class = get_dataset(config["dataset"])
-    ds = dataset_class()
+    if "dataset" in config:
+        dataset_class = get_dataset(config["dataset"])
+        ds = dataset_class()
+    else:
+        ds = CSVDataset(config["csv-path"], config["csv-text"], config["csv-label"])
     for i in range(max_threads):
         thread = threading.Thread(target=training_thread, args=(i % len(devices), ds, config))
         thread.setDaemon(True)

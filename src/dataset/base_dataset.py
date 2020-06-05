@@ -8,7 +8,6 @@ import numpy as np
 from scipy import stats
 
 
-
 class BaseDataset(object):
     """An abstract class representing a Dataset containing encoded documents.
 
@@ -46,6 +45,8 @@ class BaseDataset(object):
         if expvars_test is not None:
             assert len(expvars_test) == len(y_test), "len(expvars_test) = %d is not equal to len(y_test) = %d" % \
                                                      (len(expvars_test), len(y_test))
+        assert np.array_equal(y_train, y_train.astype(bool)) and np.array_equal(y_test, y_test.astype(bool)), \
+            "the labels must only contain 0's and 1's"
         self.doc_train = doc_train
         self.y_train = y_train
         self.doc_test = doc_test
