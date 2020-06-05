@@ -12,27 +12,30 @@ os.makedirs(DATA_DIR, exist_ok=True)
 MIN_DF = 0.01
 MAX_DF = 0.8
 TEST_RATIO = 0.15
+df = pd.read_csv(os.path.join(DATA_DIR, "wcai.csv"), encoding="utf-8")
+labels = df["labels"].values
+concatenated_documents = df["docs"].values
+# explanatory vars
+del df["labels"]
+del df["docs"]
+expvars = df.values
 
+doc_train, doc_test, y_train, y_test, expvars_train, expvars_test = \
+    train_test_split(concatenated_documents, labels, expvars, test_size=TEST_RATIO)
 
 class WcaiDataset(BaseDataset):
     def __init__(self):
-        print("Reading data...")
-        df = pd.read_csv(os.path.join(DATA_DIR, "wcai.csv"), encoding="utf-8")
-        labels = df["labels"].values
-        concatenated_documents = df["docs"].values
-        # explanatory vars
-        del df["labels"]
-        del df["docs"]
-        expvars = df.values
-
-        doc_train, doc_test, y_train, y_test, expvars_train, expvars_test = \
-            train_test_split(concatenated_documents, labels, expvars, test_size=TEST_RATIO)
         super().__init__(doc_train, doc_test, y_train, y_test, expvars_train, expvars_test)
+
+    def get_data_filename(self, params):
+        window_size = params["window_size"]  # context window size
+        min_df = params.get("min_df", MIN_DF)  # min document frequency of vocabulary, defaults to MIN_DF
+        max_df = params.get("max_df", MAX_DF)  # max document frequency of vocabulary, defaults to MAX_DF
+        return os.path.join(DATA_DIR, "wcai_w%d_min%.0E_max%.0E.pkl" % (window_size, min_df, max_df))
 
     def load_data(self, params):
         window_size = params["window_size"]  # context window size
         min_df = params.get("min_df", MIN_DF)  # min document frequency of vocabulary, defaults to MIN_DF
         max_df = params.get("max_df", MAX_DF)  # max document frequency of vocabulary, defaults to MAX_DF
-        filename = os.path.join(DATA_DIR, "wcai_w%d_min%.0E_max%.0E.pkl" % (window_size, min_df, max_df))
         vectorizer = CountVectorizer(min_df=min_df, max_df=max_df)
-        return self.get_data_dict(filename, vectorizer, window_size)
+        return self.get_data_dict(self.get_data_filename(params), vectorizer, window_size)

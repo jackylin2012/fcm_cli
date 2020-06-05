@@ -1,0 +1,26 @@
+<table class="table display" id="main_table">
+    <thead>
+    <tr>
+        <th>run ID</th>
+        <th>λ</th>
+        <th>ρ</th>
+        <th>η</th>
+        <th>topic</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for result in results %}
+        <tr>
+            <td style="word-break:break-all;">{{ result.run_id }}</td>
+            <td>{{ result.lam | floatformat:"0" }}</td>
+            <td>{{ result.rho | floatformat:"0" }}</td>
+            <td>{{ result.eta | floatformat:"0" }}</td>
+            <td>
+                <div class='longtext'>
+                    <div class='topic'>{{ result.topics | linebreaks }}</div>
+                </div>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>

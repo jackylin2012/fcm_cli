@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>FCM Result</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/css/bootstrap.min.css"
+          integrity="sha384-9gVQ4dYFwwWSjIDZnLEWnxCjeSWFphJiwGPXr1jddIhOegiu1FwO5qRGvFXOdJZ4"
+          crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.16/css/jquery.dataTables.css">
+    <style>
+        img.res {
+            height: 80px;
+        }
+
+        img.res:hover {
+            transform: scale(5, 5) translateX(calc(-5.5vh));
+        }
+
+        .longtext {
+            max-height: 200px;
+            white-space: nowrap;
+            overflow: scroll;
+        }
+    </style>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+</head>
+
+
+<body>
+<div class="container-fluid">
+
+    <main class="col-md-12 ml-sm-auto col-lg-12" role="main">
+        <p>
+            <label for="df">df range: </label>
+            <input type="text" id="df" readonly style="border:0; color:#f6931f; font-weight:bold;">
+        <div id="df-slider-range"></div>
+        </p>
+
+
+        <p>
+            <label for="tf">tf range: </label>
+            <input type="text" id="tf" readonly style="border:0; color:#206EF7; font-weight:bold;">
+        <div id="tf-slider-range"></div>
+        </p>
+
+        <p>
+            <label for="frex">FREX exclusivity: </label>
+            <input type="text" id="frex" readonly style="border:0; color:#76CE32; font-weight:bold;">
+        <div id="frex-slider-range"></div>
+        </p>
+        <div class="table-responsive" style="overflow: visible;">
+            <h1>
+                Result
+            </h1>
+            <div>
+                <table class="table display" id="main_table">
+                    <thead>
+                    <tr>
+                        <th>run ID</th>
+                        <th>λ</th>
+                        <th>ρ</th>
+                        <th>η</th>
+                        <th>topic</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for result in results %}
+                        <tr>
+                            <td style="word-break:break-all;">{{ result.run_id }}</td>
+                            <td>{{ result.lam | floatformat:"0" }}</td>
+                            <td>{{ result.rho | floatformat:"0" }}</td>
+                            <td>{{ result.eta | floatformat:"0" }}</td>
+                            <td>
+                                <div class='longtext'>
+                                    <div class='topic'>{{ result.topics | linebreaks }}</div>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js "
+        integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo "
+        crossorigin="anonymous "></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.0/umd/popper.min.js "
+        integrity="sha384-cs/chFZiN24E4KMATLdqdvsezGxaGsi4hLGOzlXwp5UZB1LY//20VyM2taTB4QvJ "
+        crossorigin="anonymous "></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/js/bootstrap.min.js "
+        integrity="sha384-uefMccjFJAIv6A+rW+L4AHf99KvxDjWSu1z9VI8SKNVmz4sk7buKt/6v9KI65qnm "
+        crossorigin="anonymous "></script>
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.16/js/jquery.dataTables.js"></script>
+<script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<script>
+    $(function () {
+        $("#df-slider-range").slider({
+            range: true,
+            min: 0,
+            max: 100,
+            values: [0, 100],
+            slide: function (event, ui) {
+                $("#df").val(ui.values[0] / 100 + " - " + ui.values[1] / 100);
+            },
+            stop: function (event, ui) {
+                $.ajax({
+                    type: "GET",
+                    url: "update",
+                    data: {
+                        "min_df": ui.values[0] / 100,
+                        "max_df": ui.values[1] / 100,
+                    },
+                    success: function (data) {
+                        console.log("success");
+                        console.log(data);
+                    },
+                    failure: function (data) {
+                        console.log("failure");
+                        console.log(data);
+                    },
+                })
+                    .done(function (response) {
+                        $(response).replaceAll('#main_table');
+                    });
+            }
+        });
+        $("#df").val($("#df-slider-range").slider("values", 0) / 100 +
+            " - " + $("#df-slider-range").slider("values", 1) / 100);
+    });
+</script>
+<script>
+    $(function () {
+        $("#tf-slider-range").slider({
+            range: true,
+            min: 0,
+            max: 100,
+            values: [0, 100],
+            slide: function (event, ui) {
+                $("#tf").val(ui.values[0] / 100 + " - " + ui.values[1] / 100);
+            },
+            stop: function (event, ui) {
+                $.ajax({
+                    type: "GET",
+                    url: "update",
+                    data: {
+                        "min_tf": ui.values[0] / 100,
+                        "max_tf": ui.values[1] / 100,
+                    },
+                    success: function (data) {
+                        console.log("success");
+                        console.log(data);
+                    },
+                    failure: function (data) {
+                        console.log("failure");
+                        console.log(data);
+                    },
+                })
+                    .done(function (response) {
+                        $(response).replaceAll('#main_table');
+                    });
+            }
+        });
+        $("#tf").val($("#tf-slider-range").slider("values", 0) / 100 +
+            " - " + $("#tf-slider-range").slider("values", 1) / 100);
+    });
+</script>
+<script>
+    $(function () {
+        $("#frex-slider-range").slider({
+            min: 0,
+            max: 100,
+            value: 50,
+            slide: function (event, ui) {
+                $("#frex").val(ui.value / 100);
+            },
+            stop: function (event, ui) {
+                $.ajax({
+                    type: "GET",
+                    url: "update",
+                    data: {
+                        "frex": ui.value / 100
+                    },
+                    success: function (data) {
+                        console.log("success");
+                        console.log(data);
+                    },
+                    failure: function (data) {
+                        console.log("failure");
+                        console.log(data);
+                    },
+                })
+                    .done(function (response) {
+                        $(response).replaceAll('#main_table');
+                    });
+            }
+        });
+        $("#frex").val($("#frex-slider-range").slider("value") / 100);
+    });
+</script>
+<script>
+    $(document).ready(function () {
+    });
+</script>
+</body>
+
+</html>

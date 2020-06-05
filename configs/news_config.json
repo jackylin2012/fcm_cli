@@ -2,7 +2,7 @@
   "dataset": "news_group",
   "gpus": [0],
   "max_threads": 1,
-  "out_dir": "../grid_search/news/run0",
+  "out_dir": "run0",
   "dataset_params": {
     "window_size": [4],
     "min_df": [0.01],

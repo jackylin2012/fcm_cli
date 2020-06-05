@@ -1,6 +1,12 @@
+import collections
+import csv
+import itertools
 import os
 import pickle
+
 import numpy as np
+from scipy import stats
+
 
 
 class BaseDataset(object):
@@ -46,6 +52,20 @@ class BaseDataset(object):
         self.y_test = y_test
         self.expvars_train = expvars_train
         self.expvars_test = expvars_test
+
+    def get_data_filename(self, params):
+        """Gets the filename of the saved data dictionary
+
+        Parameters
+        ----------
+        params : dict
+            A dictionary of parameters. "window_size" and "vocab_size" are required
+
+        Returns
+        -------
+            filename : str
+        """
+        raise NotImplementedError
 
     def load_data(self, params):
         """Loads the data with extracted features
@@ -96,7 +116,7 @@ class BaseDataset(object):
         ----------
         filename: str
             The filename to save the dataset dictionary object
-        vectorizer: Vectorizer
+        vectorizer: sklearn.feature_extraction.text.CountVectorizer
             A vectorizer instance for converting text to  bag-of-words representation
         window_size: int
             The size of context windows
@@ -109,6 +129,7 @@ class BaseDataset(object):
         if os.path.exists(filename):
             return pickle.load(open(filename, "rb"))
         analyze = vectorizer.build_analyzer()
+        self._save_corpus_df_tf(os.path.dirname(filename), analyze)
         bow_train = vectorizer.fit_transform(self.doc_train).toarray()
         document_lengths_train = bow_train.sum(axis=1)
         valid_docs = document_lengths_train >= window_size + 1
@@ -140,7 +161,53 @@ class BaseDataset(object):
             "expvars_test": self.expvars_test
         }
         pickle.dump(data, open(filename, "wb"))
+        print("Saved data to " + filename)
         return data
+
+    def _save_corpus_df_tf(self, dir, analyze):
+        """
+        Saves the document frequency and term frequency of the vocabulary in the whole training and testing corpus
+        as a csv
+
+        Parameters
+        ----------
+        dir : str
+            The directory to save the csv file
+        analyze : callable
+            A callable that handles document preprocessing and tokenization
+
+        Returns
+        -------
+        """
+        filename = os.path.join(dir, 'df_tf.csv')
+        if os.path.exists(filename):
+            return
+        doc_count = collections.Counter()
+        term_count = collections.Counter()
+        for d in itertools.chain(self.doc_train, self.doc_test):
+            w_list = analyze(d)
+            doc_count.update(set(w_list))
+            term_count.update(w_list)
+
+        df = []
+        tf = []
+        vocab = list(term_count.keys())
+        for w in vocab:
+            df.append(doc_count[w])
+            tf.append(term_count[w])
+        df = array_to_percentile(df)
+        print("tf")
+        tf = array_to_percentile(tf)
+
+        rows = zip(vocab, df, tf)
+        row_list = [("word", "df_percentile", "tf_percentile")] + list(rows)
+        with open(filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(row_list)
+
+
+def array_to_percentile(arr):
+    return list(stats.rankdata(arr, "average") / len(arr))
 
 
 def filter_list(original, include):

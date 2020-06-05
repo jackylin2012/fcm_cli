@@ -4,6 +4,8 @@ import sys
 
 import click
 
+from concept_viewer_app.make_fixtures import save_fixtures
+
 from fcm import FocusedConceptMiner
 from toolbox.helper_functions import get_dataset
 
@@ -66,6 +68,22 @@ def grid_search(config):
     """
     from grid_search import grid_search as gs
     gs(config)
+
+
+@fcm.command(context_settings=CONTEXT_SETTINGS)
+@click.argument('dir', type=click.Path(exists=True, file_okay=False))
+def visualize(dir):
+    """Visualize the concept words in a grid search result directory
+
+    DIR is the path to the grid search result directory
+    """
+    from concept_viewer_app.manage import execute
+    execute(["concept_viewer_app/manage.py", "makemigrations"])
+    execute(["concept_viewer_app/manage.py", "migrate", "--run-syncdb"])
+    execute(["concept_viewer_app/manage.py", "flush", "--no-input"])
+    saved_file = save_fixtures(dir)
+    execute(["concept_viewer_app/manage.py", "loaddata", saved_file])
+    execute(["concept_viewer_app/manage.py", "runserver", "8000"])
 
 
 if __name__ == '__main__':

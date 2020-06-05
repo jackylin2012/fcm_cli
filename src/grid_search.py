@@ -16,7 +16,7 @@ import torch
 from fcm import FocusedConceptMiner
 from toolbox.helper_functions import get_dataset
 
-# import psutil
+GRID_ROOT = os.path.abspath(__file__ + '/../../grid_search')
 
 random.seed(0)
 
@@ -120,7 +120,7 @@ def grid_search(config_path):
               for values in itertools.product(*dataset_params.values(), *fcm_params.values(), *fit_params.values())]
     random.shuffle(combos)
     print("Start grid search with %d combos" % len(combos))
-    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(os.path.join(GRID_ROOT, config["dataset"], out_dir), exist_ok=True)
     if os.path.isfile(os.path.join(out_dir, "results.csv")):
         results = pandas.read_csv(os.path.join(out_dir, "results.csv"))
     for combo in combos:

@@ -2,7 +2,7 @@
     "dataset": "prosper_loan",
     "gpus": [0],
     "max_threads": 1,
-    "out_dir": "../grid_search/prosper/run0",
+    "out_dir": "run0",
     "dataset_params" : {
         "window_size": [2, 4],
         "vocab_size": [5000],
