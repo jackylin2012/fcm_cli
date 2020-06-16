@@ -34,8 +34,9 @@ def get_fields(params, dataset, grid_dir, run_id, run_id_path):
 
 
 def save_fixtures(grid_search_path):
-    dataset = os.path.basename(os.path.dirname(grid_search_path))
+    grid_search_path = os.path.abspath(grid_search_path)
     grid_dir = os.path.basename(grid_search_path)
+    dataset = os.path.basename(os.path.dirname(grid_search_path))
     data_list = []
     for run_id in os.listdir(grid_search_path):
         run_id_path = os.path.join(grid_search_path, run_id)

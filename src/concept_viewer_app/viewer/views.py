@@ -25,6 +25,7 @@ def index(request):
     }
     return HttpResponse(template.render(context, request))
 
+
 @require_http_methods(["GET"])
 def update_table(request):
     mindf = float(request.GET.get('min_df', 0.01))
@@ -33,7 +34,7 @@ def update_table(request):
     maxtf = float(request.GET.get('max_tf', 1.))
     frex = float(request.GET.get('frex', 0.5))
     results = Result.objects.all()
-    handler = process(mindf, maxdf, mintf, maxtf, frex, results[0])
+    handler = process(mindf, maxdf, mintf, maxtf, frex, results[0].dataset)
     results = map(handler, results)
     template = loader.get_template('viewer/table.html')
     context = {

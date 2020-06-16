@@ -24,6 +24,21 @@
             white-space: nowrap;
             overflow: scroll;
         }
+
+        input {
+            width:3.5%;
+            text-align: center;
+            border-style: solid;
+            font-weight:bold;
+        }
+        label {
+            border:0;
+            font-weight:bold;
+        }
+
+        div.slider {
+            width: 90%;
+        }
     </style>
     <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
 </head>
@@ -31,25 +46,25 @@
 
 <body>
 <div class="container-fluid">
-
-    <main class="col-md-12 ml-sm-auto col-lg-12" role="main">
+    <main class="col-md-12 ml-sm-auto col-lg-12" role="main" style="margin: 20px">
         <p>
-            <label for="df">document-frequency range (in percentile): </label>
-            <input type="text" id="df" readonly style="border:0; color:#f6931f; font-weight:bold;">
-        <div id="df-slider-range"></div>
+            <label for="min_df">document-frequency range (in percentile): </label>
+            <input type="text" id="min_df" style="color:#f6931f;">
+            <label for="max_df" style="color:#f6931f;"> - </label>
+            <input type="text" id="max_df" style="color:#f6931f;">
+        <div class="slider" id="df-slider-range"></div>
         </p>
-
-
         <p>
-            <label for="tf">term-frequency range (in percentile): </label>
-            <input type="text" id="tf" readonly style="border:0; color:#206EF7; font-weight:bold;">
-        <div id="tf-slider-range"></div>
+            <label for="min_tf">term-frequency range (in percentile): </label>
+            <input type="text" id="min_tf" style="color:#206EF7;">
+            <label for="max_tf" style="color:#206EF7;"> - </label>
+            <input type="text" id="max_tf" style="color:#206EF7;">
+        <div class="slider" id="tf-slider-range"></div>
         </p>
-
         <p>
             <label for="frex">FREX exclusivity: </label>
-            <input type="text" id="frex" readonly style="border:0; color:#76CE32; font-weight:bold;">
-        <div id="frex-slider-range"></div>
+            <input type="text" id="frex" style="color:#76CE32;">
+        <div class="slider" id="frex-slider-range"></div>
         </p>
         <div class="table-responsive" style="overflow: visible;">
             <h1>
@@ -63,22 +78,22 @@
                         <th>λ</th>
                         <th>ρ</th>
                         <th>η</th>
-                        <th>topic</th>
+                        <th>concepts</th>
                     </tr>
                     </thead>
                     <tbody>
                     {% for result in results %}
-                        <tr>
-                            <td style="word-break:break-all;">{{ result.run_id }}</td>
-                            <td>{{ result.lam | floatformat:"0" }}</td>
-                            <td>{{ result.rho | floatformat:"0" }}</td>
-                            <td>{{ result.eta | floatformat:"0" }}</td>
-                            <td>
-                                <div class='longtext'>
-                                    <div class='topic'>{{ result.topics | linebreaks }}</div>
-                                </div>
-                            </td>
-                        </tr>
+                    <tr>
+                        <td style="word-break:break-all;">{{ result.run_id }}</td>
+                        <td>{{ result.lam | floatformat:"0" }}</td>
+                        <td>{{ result.rho | floatformat:"0" }}</td>
+                        <td>{{ result.eta | floatformat:"0" }}</td>
+                        <td>
+                            <div class='longtext'>
+                                <div class='topic'>{{ result.topics | linebreaks }}</div>
+                            </div>
+                        </td>
+                    </tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -100,78 +115,25 @@
 <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
 <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 <script>
-    $(function () {
-        $("#df-slider-range").slider({
-            range: true,
-            min: 0,
-            max: 100,
-            values: [0, 100],
-            slide: function (event, ui) {
-                $("#df").val(ui.values[0] / 100 + " - " + ui.values[1] / 100);
+    function sendUpdateRequest(keyValues) {
+        $.ajax({
+            type: "GET",
+            url: "update",
+            data: keyValues,
+            success: function (data) {
+                console.log("success");
+                console.log(data);
             },
-            stop: function (event, ui) {
-                $.ajax({
-                    type: "GET",
-                    url: "update",
-                    data: {
-                        "min_df": ui.values[0] / 100,
-                        "max_df": ui.values[1] / 100,
-                    },
-                    success: function (data) {
-                        console.log("success");
-                        console.log(data);
-                    },
-                    failure: function (data) {
-                        console.log("failure");
-                        console.log(data);
-                    },
-                })
-                    .done(function (response) {
-                        $(response).replaceAll('#main_table');
-                    });
-            }
-        });
-        $("#df").val($("#df-slider-range").slider("values", 0) / 100 +
-            " - " + $("#df-slider-range").slider("values", 1) / 100);
-    });
-</script>
-<script>
-    $(function () {
-        $("#tf-slider-range").slider({
-            range: true,
-            min: 0,
-            max: 100,
-            values: [0, 100],
-            slide: function (event, ui) {
-                $("#tf").val(ui.values[0] / 100 + " - " + ui.values[1] / 100);
+            failure: function (data) {
+                console.log("failure");
+                console.log(data);
             },
-            stop: function (event, ui) {
-                $.ajax({
-                    type: "GET",
-                    url: "update",
-                    data: {
-                        "min_tf": ui.values[0] / 100,
-                        "max_tf": ui.values[1] / 100,
-                    },
-                    success: function (data) {
-                        console.log("success");
-                        console.log(data);
-                    },
-                    failure: function (data) {
-                        console.log("failure");
-                        console.log(data);
-                    },
-                })
-                    .done(function (response) {
-                        $(response).replaceAll('#main_table');
-                    });
-            }
-        });
-        $("#tf").val($("#tf-slider-range").slider("values", 0) / 100 +
-            " - " + $("#tf-slider-range").slider("values", 1) / 100);
-    });
-</script>
-<script>
+        })
+            .done(function (response) {
+                $(response).replaceAll('#main_table');
+            });
+    }
+
     $(function () {
         $("#frex-slider-range").slider({
             min: 0,
@@ -179,35 +141,87 @@
             value: 50,
             slide: function (event, ui) {
                 $("#frex").val(ui.value / 100);
+                $(ui.value).val($('#frex').val() * 100);
             },
             stop: function (event, ui) {
-                $.ajax({
-                    type: "GET",
-                    url: "update",
-                    data: {
-                        "frex": ui.value / 100
-                    },
-                    success: function (data) {
-                        console.log("success");
-                        console.log(data);
-                    },
-                    failure: function (data) {
-                        console.log("failure");
-                        console.log(data);
-                    },
-                })
-                    .done(function (response) {
-                        $(response).replaceAll('#main_table');
-                    });
+                sendUpdateRequest({"frex": ui.value / 100})
             }
         });
-        $("#frex").val($("#frex-slider-range").slider("value") / 100);
+        $("#frex").val($("#frex-slider-range").slider("values", 0) / 100);
+        $("#frex").on('keyup', function (e) {
+            if (e.keyCode === 13) {
+                $("#frex-slider-range").slider("value", $(this).val() * 100);
+                sendUpdateRequest({"frex": $(this).val()})
+            }
+        });
+        $("#tf-slider-range").slider({
+            range: true,
+            min: 0,
+            max: 100,
+            values: [0, 100],
+            slide: function (event, ui) {
+                $("#min_tf").val((ui.values[0] / 100).toFixed(2));
+                $("#max_tf").val((ui.values[1] / 100).toFixed(2));
+                $(ui.values[0]).val($('#min_tf').val() * 100);
+                $(ui.values[1]).val($('#max_tf').val() * 100);
+            },
+            stop: function (event, ui) {
+                sendUpdateRequest({
+                    "min_tf": ui.values[0] / 100,
+                    "max_tf": ui.values[1] / 100,
+                });
+            }
+        });
+        $("#min_tf").val(($("#tf-slider-range").slider("values", 0) / 100).toFixed(2));
+        $("#max_tf").val(($("#tf-slider-range").slider("values", 1) / 100).toFixed(2));
+        $("#min_tf").on('keyup', function (e) {
+            if (e.keyCode === 13) {
+                $("#tf-slider-range").slider("values", 0, $(this).val() * 100);
+                sendUpdateRequest({"min_tf": $(this).val()})
+            }
+        });
+        $("#max_tf").on('keyup', function (e) {
+            if (e.keyCode === 13) {
+                $("#tf-slider-range").slider("values", 1, $(this).val() * 100);
+                sendUpdateRequest({"max_tf": $(this).val()})
+            }
+        });
+        $("#df-slider-range").slider({
+            range: true,
+            min: 0,
+            max: 100,
+            values: [0, 100],
+            slide: function (event, ui) {
+                $("#min_df").val((ui.values[0] / 100).toFixed(2));
+                $("#max_df").val((ui.values[1] / 100).toFixed(2));
+                $(ui.values[0]).val($('#min_df').val() * 100);
+                $(ui.values[1]).val($('#max_df').val() * 100);
+            },
+            stop: function (event, ui) {
+                sendUpdateRequest({
+                    "min_df": ui.values[0] / 100,
+                    "max_df": ui.values[1] / 100,
+                });
+            }
+        });
+        $("#min_df").val(($("#df-slider-range").slider("values", 0) / 100).toFixed(2));
+        $("#max_df").val(($("#df-slider-range").slider("values", 1) / 100).toFixed(2));
+        $("#min_df").on('keyup', function (e) {
+            if (e.keyCode === 13) {
+                $("#df-slider-range").slider("values", 0, $(this).val() * 100);
+                sendUpdateRequest({"min_df": $(this).val()})
+            }
+        });
+        $("#max_df").on('keyup', function (e) {
+            if (e.keyCode === 13) {
+                $("#df-slider-range").slider("values", 1, $(this).val() * 100);
+                sendUpdateRequest({"max_df": $(this).val()})
+            }
+        });
     });
+
 </script>
-<script>
-    $(document).ready(function () {
-    });
-</script>
+
 </body>
 
 </html>

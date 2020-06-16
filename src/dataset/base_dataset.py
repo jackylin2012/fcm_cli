@@ -197,7 +197,6 @@ class BaseDataset(object):
             df.append(doc_count[w])
             tf.append(term_count[w])
         df = array_to_percentile(df)
-        print("tf")
         tf = array_to_percentile(tf)
 
         rows = zip(vocab, df, tf)
