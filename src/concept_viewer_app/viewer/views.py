@@ -16,8 +16,13 @@ def get_result(request):
     return HttpResponse(response)
 
 
+current_table = {'min_df': 0.00, 'max_df': 1., 'min_tf': 0.00, 'max_tf': 1., 'frex': 0.5}
+
+
 @require_http_methods(["GET"])
 def index(request):
+    global current_table
+    current_table = {'min_df': 0.00, 'max_df': 1., 'min_tf': 0.00, 'max_tf': 1., 'frex': 0.5}
     results = Result.objects.all()
     template = loader.get_template('viewer/index.html')
     context = {
@@ -28,13 +33,14 @@ def index(request):
 
 @require_http_methods(["GET"])
 def update_table(request):
-    mindf = float(request.GET.get('min_df', 0.01))
-    maxdf = float(request.GET.get('max_df', 1.))
-    mintf = float(request.GET.get('min_tf', 0.))
-    maxtf = float(request.GET.get('max_tf', 1.))
-    frex = float(request.GET.get('frex', 0.5))
+    global current_table
+    current_table['min_df'] = float(request.GET.get('min_df', current_table['min_df']))
+    current_table['max_df'] = float(request.GET.get('max_df', current_table['max_df']))
+    current_table['min_tf'] = float(request.GET.get('min_tf', current_table['min_tf']))
+    current_table['max_tf'] = float(request.GET.get('max_tf', current_table['max_tf']))
+    current_table['frex'] = float(request.GET.get('frex', current_table['frex']))
     results = Result.objects.all()
-    handler = process(mindf, maxdf, mintf, maxtf, frex, results[0].dataset)
+    handler = process(**current_table, dataset=results[0].dataset)
     results = map(handler, results)
     template = loader.get_template('viewer/table.html')
     context = {

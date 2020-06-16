@@ -17,18 +17,18 @@ def process_text(result, wordset, frex_w):
     return processed_text
 
 
-def process(mindf, maxdf, mintf, maxtf, frex_w, dataset):
+def process(min_df, max_df, min_tf, max_tf, frex, dataset):
     global df
     if df is None:
         word_freq_path = os.path.join(ROOT, 'data', dataset, 'df_tf.csv')
         df = pd.read_table(word_freq_path, sep=',')
-    filtered_df = df.loc[(df['df_percentile'] >= mindf) & (df['df_percentile'] <= maxdf) &
-                         (df['tf_percentile'] >= mintf) & (df['tf_percentile'] <= maxtf)]
+    filtered_df = df.loc[(df['df_percentile'] >= min_df) & (df['df_percentile'] <= max_df) &
+                         (df['tf_percentile'] >= min_tf) & (df['tf_percentile'] <= max_tf)]
     wordset = set(filtered_df['word'])
 
     def foo(result):
         new_result = result
-        new_result.topics = process_text(result, wordset, frex_w)
+        new_result.topics = process_text(result, wordset, frex)
         return new_result
 
     return foo

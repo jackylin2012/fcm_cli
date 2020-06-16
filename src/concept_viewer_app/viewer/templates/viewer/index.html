@@ -140,14 +140,14 @@
             max: 100,
             value: 50,
             slide: function (event, ui) {
-                $("#frex").val(ui.value / 100);
+                $("#frex").val((ui.value / 100).toFixed(2));
                 $(ui.value).val($('#frex').val() * 100);
             },
             stop: function (event, ui) {
                 sendUpdateRequest({"frex": ui.value / 100})
             }
         });
-        $("#frex").val($("#frex-slider-range").slider("values", 0) / 100);
+        $("#frex").val(($("#frex-slider-range").slider("values", 0) / 100).toFixed(2));
         $("#frex").on('keyup', function (e) {
             if (e.keyCode === 13) {
                 $("#frex-slider-range").slider("value", $(this).val() * 100);
