@@ -1,54 +1,36 @@
 import json
 import os
-import re
 
 import numpy as np
 import scipy
 import scipy.stats
 import torch
+from gensim.models.coherencemodel import CoherenceModel
 from scipy.special import logsumexp
 
 from toolbox.helper_functions import get_dataset
 
-ROOT = os.path.abspath(__file__+'/../../../..')
-DECODER_CACHE = {}
+ROOT = os.path.abspath(__file__ + '/../../../..')
+EPS = 1E-6
 
-
-def load_decoder(run_id_path, dataset):
+def load_dataset(run_id_path, dataset):
     dataset_class = get_dataset(dataset)
     ds = dataset_class()
     with open(os.path.join(run_id_path, "params.json"), "r") as f:
         params = json.load(f)
-    data_filename = ds.get_data_filename(params["dataset"])
-    if data_filename in DECODER_CACHE:
-        return DECODER_CACHE[data_filename]
     data = ds.load_data(params["dataset"])
-    decoder = data["vocab"]
-    DECODER_CACHE[data_filename] = decoder
-    return decoder
+    return data["vocab"], data["gensim_corpus"], data["gensim_dictionary"]
 
 
-def load_dotproduct_distance(run_id_path):
-    max_episode_file = None
-    max_episode = -1
-    model_dir = os.path.join(run_id_path, "model")
-    for model_file in os.listdir(model_dir):
-        episode_match = re.search('epoch(\d+)\.pytorch', model_file)
-        if episode_match is None:
-            continue
-        episode = int(episode_match.group(1))
-        if episode > max_episode:
-            max_episode = episode
-            max_episode_file = model_file
-    if max_episode_file is None:
-        return None
-    state = torch.load(os.path.join(model_dir, max_episode_file), map_location=torch.device('cpu'))
+def load_dotproduct_distance(run_id_path, epoch):
+    model_file = os.path.join(run_id_path, "model", "epoch%d.pytorch" % epoch)
+    state = torch.load(model_file, map_location=torch.device('cpu'))
     topic_vectors = state['embedding_t'].cpu().numpy()
     word_vectors = state['embedding_i.weight'].cpu().numpy().T
     return -np.dot(topic_vectors, word_vectors)
 
 
-def distance_to_distribution(distance, function=lambda x: 1 / x, normalize=True):
+def distance_to_distribution(distance, function=lambda x: abs(1 / (x + EPS)), normalize=True):
     """
     Input: T * V array. 
     """
@@ -83,22 +65,28 @@ def frex_score(exclusivity_ecdf, freq_ecdf, w):
     return 1. / (w / exclusivity_ecdf + (1 - w) / freq_ecdf)
 
 
-def get_topics(decoder, frex, wordset, topn):
+def get_topics(vocab, frex, wordset, topn):
     topics = []
     for word_indices in (-frex).argsort(axis=1):
         words = []
         for i in word_indices:
-            if decoder[i] in wordset:
-                words.append(decoder[i])
+            if vocab[i] in wordset:
+                words.append(vocab[i])
             if len(words) >= topn:
                 break
         topics.append(words)
     return topics
 
 
+def get_coherence(topics, corpus, dict):
+    coherence_model = CoherenceModel(topics=topics, corpus=corpus, dictionary=dict, coherence='u_mass')
+    coherence_per_topic = '\n'.join(['%.2f' % c for c in coherence_model.get_coherence_per_topic()])
+    return coherence_per_topic, coherence_model.get_coherence()
+
+
 def get_top_frex_words(result, wordset, frex_w, topn):
-    run_id_path = os.path.join(ROOT, "grid_search", result.dataset, result.grid_dir, result.run_id)
-    decoder = load_decoder(run_id_path, result.dataset)
+    run_id_path = os.path.join(ROOT, "grid_search", result.grid_dir, result.run_id)
+    vocab, corpus, dict = load_dataset(run_id_path, result.dataset)
     excl_file = os.path.join(run_id_path, "exclusivity_ecdf.npy")
     freq_file = os.path.join(run_id_path, "freq_ecdf.npy")
     if os.path.exists(excl_file) and os.path.exists(freq_file):
@@ -106,11 +94,11 @@ def get_top_frex_words(result, wordset, frex_w, topn):
         freq_ecdf = np.load(freq_file)
         frex = frex_score(exclusivity_ecdf, freq_ecdf, frex_w)
     else:
-        distance = load_dotproduct_distance(run_id_path)
+        distance = load_dotproduct_distance(run_id_path, result.epoch)
         if distance is None:
             return []
-        distribution = distance_to_distribution(distance, function=lambda x: 1 / x, normalize=False)
+        distribution = distance_to_distribution(distance, normalize=False)
         frex = calculate_frex(run_id_path, distribution, w=frex_w)
-    topics = get_topics(decoder, frex, wordset, topn)
-    return topics
-
+    topics = get_topics(vocab, frex, wordset, topn)
+    coherence_per_topic, coherence = get_coherence(topics, corpus, dict)
+    return topics, coherence_per_topic, coherence

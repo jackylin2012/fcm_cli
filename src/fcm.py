@@ -351,8 +351,8 @@ class FocusedConceptMiner(nn.Module):
 
         self.to(self.device)
         train_metrics_file = open(os.path.join(self.out_dir, "train_metrics.txt"), "w")
-        train_metrics_file.write("total_loss, avg_sgns_loss, avg_dirichlet_loss, avg_pred_loss, "
-                                 "avg_div_loss，train_auc, test_auc\n")
+        train_metrics_file.write("total_loss,avg_sgns_loss,avg_dirichlet_loss,avg_pred_loss,"
+                                 "avg_div_loss,train_auc,test_auc\n")
 
         # SGD generalizes better: https://arxiv.org/abs/1705.08292
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
@@ -411,7 +411,7 @@ class FocusedConceptMiner(nn.Module):
             self.logger.info("Dirichlet loss: %.4f" % avg_dirichlet_loss)
             self.logger.info("Prediction loss: %.4f" % avg_pred_loss)
             self.logger.info("Diversity loss: %.4f" % avg_diversity_loss)
-            concepts = self.get_concept_words(top_k=5, concept_dist=concept_dist)
+            concepts = self.get_concept_words(concept_dist=concept_dist)
             with open(os.path.join(self.concept_dir, "epoch%d.txt" % epoch), "w") as concept_file:
                 for i, concept_words in enumerate(concepts):
                     self.logger.info('concept %d: %s' % (i + 1, ' '.join(concept_words)))
@@ -422,13 +422,13 @@ class FocusedConceptMiner(nn.Module):
             train_metrics_file.flush()
             results.append(metrics)
             if (epoch + 1) % save_epochs == 0:
-                torch.save(self.state_dict(), os.path.join(self.model_dir, "epoch%d.pytorch" % (epoch + 1)))
+                torch.save(self.state_dict(), os.path.join(self.model_dir, "epoch%d.pytorch" % epoch))
                 with torch.no_grad():
                     doc_concept_probs = self.get_train_doc_concept_probs()
-                    np.save(os.path.join(self.model_dir, "epoch%d_train_doc_concept_probs.npy" % (epoch + 1)),
+                    np.save(os.path.join(self.model_dir, "epoch%d_train_doc_concept_probs.npy" % epoch),
                             doc_concept_probs.cpu().detach().numpy())
 
-        torch.save(self.state_dict(), os.path.join(self.model_dir, "epoch%d.pytorch" % nepochs))
+        torch.save(self.state_dict(), os.path.join(self.model_dir, "epoch%d.pytorch" % (nepochs - 1)))
         return np.array(results)
 
     def calculate_auc(self, split, X, y, expvars):

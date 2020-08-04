@@ -58,6 +58,9 @@ def train(dataset, csv_path, csv_text, csv_label, nconcepts, out_dir, embed_dim,
         ds = dataset_class()
     print("Loading data...")
     data_attr = ds.load_data({"vocab_size": vocab_size, "window_size": window_size})
+    # remove gensim keys which are only used for visualization
+    del data_attr["gensim_corpus"]
+    del data_attr["gensim_dictionary"]
     fcminer = FocusedConceptMiner(out_dir, embed_dim=embed_dim, nnegs=nnegs, nconcepts=nconcepts,
                                   lam=lam, rho=rho, eta=eta, gpu=gpu, file_log=True, inductive=inductive, **data_attr)
     print("Starts training")

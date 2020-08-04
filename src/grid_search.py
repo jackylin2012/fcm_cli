@@ -31,32 +31,35 @@ lock = threading.Lock()
 # TODO: multithread result file conflict
 def training_thread(device_idx, ds, config):
     global results
-    while not queue.empty():
+    while True:
         device = devices[device_idx]
-        dataset_params, fcm_params, fit_params = queue.get_nowait()
+        dataset_params, fcm_params, fit_params = queue.get()
         params = {"dataset": dataset_params, "fcm": fcm_params, "fit": fit_params}
-        param_id = hashlib.md5(json.dumps(params,
-                                          sort_keys=True).encode('utf-8')).hexdigest()
+        run_id = hashlib.md5(json.dumps(params, sort_keys=True).encode('utf-8')).hexdigest()
         try:
             with lock:
-                current_out_dir = os.path.join(out_dir, param_id)
-                result_file = os.path.join(current_out_dir, "result.json")
+                run_dir = os.path.join(grid_dir, run_id)
+                result_file = os.path.join(run_dir, "result.json")
                 if os.path.exists(result_file):
-                    print("Configuration {} has already been run, skip...".format(param_id))
+                    print("Configuration {} has already been run, skip...".format(run_id))
+                    queue.task_done()
                     continue
-                os.makedirs(current_out_dir, exist_ok=True)
-                with open(os.path.join(current_out_dir, 'params.json'), 'w') as f:
+                os.makedirs(run_dir, exist_ok=True)
+                with open(os.path.join(run_dir, 'params.json'), 'w') as f:
                     json.dump(params, f, sort_keys=True)
                 data_dict = ds.load_data(dataset_params)
+                # remove gensim keys which are only used for visualization
+                del data_dict["gensim_corpus"]
+                del data_dict["gensim_dictionary"]
             print("Beginning training run on {}... with id {} dataset_params={}, fcm_params={}, fit_params={}".format(
-                device, param_id, dataset_params, fcm_params, fit_params))
-            print("Save grid search results to {}".format(os.path.abspath(current_out_dir)))
+                device, run_id, dataset_params, fcm_params, fit_params))
+            print("Save grid search results to {}".format(os.path.abspath(run_dir)))
             start = time.perf_counter()
             if torch.cuda.is_available():
-                fc_miner = FocusedConceptMiner(current_out_dir, gpu=gpus[device_idx], file_log=True,
+                fc_miner = FocusedConceptMiner(run_dir, gpu=gpus[device_idx], file_log=True,
                                                **fcm_params, **data_dict)
             else:
-                fc_miner = FocusedConceptMiner(current_out_dir, file_log=True, **fcm_params, **data_dict)
+                fc_miner = FocusedConceptMiner(run_dir, file_log=True, **fcm_params, **data_dict)
             metrics = fc_miner.fit(**fit_params)
             # fc_miner.visualize()
             end = time.perf_counter()
@@ -70,7 +73,7 @@ def training_thread(device_idx, ds, config):
         else:
             best_losses = metrics[:, :-2].min(axis=0)
             best_aucs = metrics[:, -2:].max(axis=0)
-            best_metrics = {"id": param_id, "run_time": run_time,
+            best_metrics = {"id": run_id, "run_time": run_time,
                             "total_loss": best_losses[0], "sgns_loss": best_losses[1],
                             "dirichlet_loss": best_losses[2], "pred_loss": best_losses[3], "div_loss": best_losses[4],
                             "train_auc": best_aucs[0], "test_auc": best_aucs[1]}
@@ -82,7 +85,7 @@ def training_thread(device_idx, ds, config):
                 json.dump(new_result, f, sort_keys=True)
             with lock:
                 results = results.append(new_result, ignore_index=True)
-                results.to_csv(os.path.join(out_dir, "results.csv"), index=False)
+                results.to_csv(os.path.join(grid_dir, "results.csv"), index=False)
             print("Training run complete, results:", best_metrics)
         torch.cuda.empty_cache()
         gc.collect()
@@ -92,7 +95,7 @@ def training_thread(device_idx, ds, config):
 def grid_search(config_path):
     with open(config_path, "r") as f:
         config = json.load(f)
-    global gpus, out_dir, results, devices
+    global gpus, grid_dir, results, devices
     out_dir = config["out_dir"]
     max_threads = config["max_threads"]
     if torch.cuda.is_available():
@@ -121,7 +124,10 @@ def grid_search(config_path):
               for values in itertools.product(*dataset_params.values(), *fcm_params.values(), *fit_params.values())]
     random.shuffle(combos)
     print("Start grid search with %d combos" % len(combos))
-    os.makedirs(os.path.join(GRID_ROOT, config["dataset"], out_dir), exist_ok=True)
+    grid_dir = os.path.join(GRID_ROOT, config["dataset"], out_dir)
+    os.makedirs(grid_dir, exist_ok=True)
+    with open(os.path.join(grid_dir, 'config.json'), 'w') as f:
+        json.dump(config, f, sort_keys=True)
     if os.path.isfile(os.path.join(out_dir, "results.csv")):
         results = pandas.read_csv(os.path.join(out_dir, "results.csv"))
     for combo in combos:

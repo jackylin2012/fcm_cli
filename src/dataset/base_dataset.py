@@ -7,6 +7,8 @@ import pickle
 import numpy as np
 from scipy import stats
 
+from gensim.corpora.dictionary import Dictionary
+
 
 class BaseDataset(object):
     """An abstract class representing a Dataset containing encoded documents.
@@ -81,6 +83,10 @@ class BaseDataset(object):
         data : dict
             A dictionary containing the following attributes of the dataset:
             {
+                "gensim_dictionary": class:`~gensim.corpora.dictionary.Dictionary`
+                    Gensim dictionary mapping of id word to create corpus.
+                "gensim_corpus": iterable of list of (int, number),
+                    Corpus in Gensim BoW format.
                 "bow_train": ndarray, shape (n_train_docs, vocab_size)
                     Training corpus encoded as a bag-of-words matrix, where n_train_docs is the number of documents
                     in the training set, and vocab_size is the vocabulary size.
@@ -129,16 +135,20 @@ class BaseDataset(object):
         """
         if os.path.exists(filename):
             return pickle.load(open(filename, "rb"))
+
         analyze = vectorizer.build_analyzer()
         self._save_corpus_df_tf(os.path.dirname(filename), analyze)
         bow_train = vectorizer.fit_transform(self.doc_train).toarray()
         document_lengths_train = bow_train.sum(axis=1)
         valid_docs = document_lengths_train >= window_size + 1
         document_lengths_train = document_lengths_train[valid_docs]
-        encoded_documents_train = [[vectorizer.vocabulary_.get(word)
-                                    for word in analyze(document)
-                                    if vectorizer.vocabulary_.get(word) is not None]
-                                   for document in self.doc_train]
+
+        words_train = [[word for word in analyze(document) if vectorizer.vocabulary_.get(word) is not None]
+                       for document in self.doc_train]
+        gensim_dictionary = Dictionary(words_train)
+        gensim_corpus = [gensim_dictionary.doc2bow(text) for text in words_train]
+        encoded_documents_train = [[vectorizer.vocabulary_.get(word) for word in document]
+                                   for document in words_train]
         encoded_documents_train = filter_list(encoded_documents_train, valid_docs)
         bow_train = bow_train[valid_docs]
         y_train = np.array(self.y_train)[valid_docs]
@@ -150,6 +160,8 @@ class BaseDataset(object):
         wordcounts_train = bow_train.sum(axis=0)
         doc_windows_train = get_windows(encoded_documents_train, y_train, window_size=window_size)
         data = {
+            "gensim_dictionary": gensim_dictionary,
+            "gensim_corpus": gensim_corpus,
             "doc_windows": doc_windows_train,
             "word_counts": wordcounts_train,
             "doc_lens": document_lengths_train,

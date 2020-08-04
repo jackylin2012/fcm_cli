@@ -11,10 +11,10 @@ df = None
 
 
 def process_text(result, wordset, frex_w):
-    topic_lists = get_top_frex_words(result, wordset, frex_w, MAX_NB_WORDS)
+    topic_lists, coherence_per_topic, coherence = get_top_frex_words(result, wordset, frex_w, MAX_NB_WORDS)
     topic_lines = ['concept %d: %s' % (i, ' '.join(t_list)) for i, t_list in enumerate(topic_lists)]
-    processed_text = '\n'.join(topic_lines)
-    return processed_text
+    topics = '\n'.join(topic_lines)
+    return topics, coherence_per_topic, coherence
 
 
 def process(min_df, max_df, min_tf, max_tf, frex, dataset):
@@ -26,9 +26,9 @@ def process(min_df, max_df, min_tf, max_tf, frex, dataset):
                          (df['tf_percentile'] >= min_tf) & (df['tf_percentile'] <= max_tf)]
     wordset = set(filtered_df['word'])
 
-    def foo(result):
+    def result_handler(result):
         new_result = result
-        new_result.topics = process_text(result, wordset, frex)
+        new_result.topics, new_result.coherence_per_topic, new_result.coherence = process_text(result, wordset, frex)
         return new_result
 
-    return foo
+    return result_handler

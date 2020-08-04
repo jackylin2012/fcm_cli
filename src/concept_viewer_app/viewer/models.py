@@ -4,10 +4,11 @@ from django.db import models
 
 
 class Result(models.Model):
-    key = models.CharField(max_length=128, primary_key=True)
+    key = models.CharField(max_length=512, primary_key=True)
     dataset = models.CharField(max_length=64)
-    grid_dir = models.CharField(max_length=64)
+    grid_dir = models.CharField(max_length=256)
     run_id = models.CharField(max_length=64)
+    epoch = models.IntegerField()
     window_size = models.IntegerField()
     embed_dim = models.IntegerField()
     nnegs = models.IntegerField()
@@ -16,6 +17,15 @@ class Result(models.Model):
     rho = models.FloatField()
     eta = models.FloatField()
     topics = models.TextField(default='')
+    coherence_per_topic = models.TextField(default='')
+    coherence = models.FloatField()
+    total_loss = models.FloatField()
+    avg_sgns_loss = models.FloatField()
+    avg_dirichlet_loss = models.FloatField()
+    avg_pred_loss = models.FloatField()
+    avg_div_loss = models.FloatField()
+    train_auc = models.FloatField()
+    test_auc = models.FloatField()
 
     def __str__(self):
-        return '{}:rho{}'.format(self.run_id, self.rho)
+        return '{}:rho{}'.format(self.key, self.rho)
