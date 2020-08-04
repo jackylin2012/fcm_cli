@@ -42,6 +42,15 @@ pip install --editable .
   visualization will be saved
 
 Options:
+  --csv-path FILE                 Path to the csv file. Only needed if
+                                  `dataset` is 'csv'
+
+  --csv-text TEXT                 Column name of the text field in the csv
+                                  file. Only needed if `dataset` is 'csv'
+
+  --csv-label TEXT                Column name of the label field in the csv
+                                  file. Only needed if `dataset` is 'csv'
+
   --nconcepts INTEGER             No. of concepts (default: 5)
   --embed-dim INTEGER             The size of each word/concept embedding
                                   vector (default: 50)
@@ -89,6 +98,9 @@ Options:
       "dataset": "news_group", # the name of the dataset to be used. It must be one of the datasets 
                                # defined in `fcm_cli/src/dataset/` which is a subclass of BaseDataset. 
                                # The existing options are "news_group", "wcai", and "prosper_loan".
+      "csv-path" : "/home/Downloads/data/wcai/wcai.csv", # path to the csv file. Only needed if `dataset` is 'csv'
+      "csv-text" : "docs", # column name of the text field in the csv file. Only needed if `dataset` is 'csv'
+      "csv-label" : "labels", # column name of the label field in the csv file. Only needed if `dataset` is 'csv'
       "gpus": [0],  # list of GPU devices if CUDA is available. Ignored if no CUDA.
       "max_threads": 1, # max number of parallel threads to run grid search
       "out_dir": "../grid_search/news/run0", # the directory to save grid search output files

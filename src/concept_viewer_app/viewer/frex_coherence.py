@@ -13,9 +13,16 @@ from toolbox.helper_functions import get_dataset
 ROOT = os.path.abspath(__file__ + '/../../../..')
 EPS = 1E-6
 
-def load_dataset(run_id_path, dataset):
+
+def load_dataset(grid_path, dataset, run_id):
     dataset_class = get_dataset(dataset)
-    ds = dataset_class()
+    if dataset == 'csv':
+        with open(os.path.join(grid_path, "config.json"), "r") as f:
+            config = json.load(f)
+        ds = dataset_class(config["csv-path"], config["csv-text"], config["csv-label"])
+    else:
+        ds = dataset_class()
+    run_id_path = os.path.join(grid_path, run_id)
     with open(os.path.join(run_id_path, "params.json"), "r") as f:
         params = json.load(f)
     data = ds.load_data(params["dataset"])
@@ -78,15 +85,15 @@ def get_topics(vocab, frex, wordset, topn):
     return topics
 
 
-def get_coherence(topics, corpus, dict):
-    coherence_model = CoherenceModel(topics=topics, corpus=corpus, dictionary=dict, coherence='u_mass')
+def get_coherence(topics, corpus, dic):
+    coherence_model = CoherenceModel(topics=topics, corpus=corpus, dictionary=dic, coherence='u_mass')
     coherence_per_topic = '\n'.join(['%.2f' % c for c in coherence_model.get_coherence_per_topic()])
     return coherence_per_topic, coherence_model.get_coherence()
 
 
 def get_top_frex_words(result, wordset, frex_w, topn):
-    run_id_path = os.path.join(ROOT, "grid_search", result.grid_dir, result.run_id)
-    vocab, corpus, dict = load_dataset(run_id_path, result.dataset)
+    run_id_path = os.path.join(result.grid_path, result.run_id)
+    vocab, corpus, dic = load_dataset(result.grid_path, result.dataset, result.run_id)
     excl_file = os.path.join(run_id_path, "exclusivity_ecdf.npy")
     freq_file = os.path.join(run_id_path, "freq_ecdf.npy")
     if os.path.exists(excl_file) and os.path.exists(freq_file):
@@ -100,5 +107,5 @@ def get_top_frex_words(result, wordset, frex_w, topn):
         distribution = distance_to_distribution(distance, normalize=False)
         frex = calculate_frex(run_id_path, distribution, w=frex_w)
     topics = get_topics(vocab, frex, wordset, topn)
-    coherence_per_topic, coherence = get_coherence(topics, corpus, dict)
+    coherence_per_topic, coherence = get_coherence(topics, corpus, dic)
     return topics, coherence_per_topic, coherence

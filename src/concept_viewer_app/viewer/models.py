@@ -6,7 +6,7 @@ from django.db import models
 class Result(models.Model):
     key = models.CharField(max_length=512, primary_key=True)
     dataset = models.CharField(max_length=64)
-    grid_dir = models.CharField(max_length=256)
+    grid_path = models.CharField(max_length=256)
     run_id = models.CharField(max_length=64)
     epoch = models.IntegerField()
     window_size = models.IntegerField()

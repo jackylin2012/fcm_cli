@@ -5,7 +5,7 @@ import sys
 import click
 
 from concept_viewer_app.make_fixtures import save_fixtures
-from dataset.csv_dataset import CSVDataset
+from dataset.csv import CSVDataset
 
 from fcm import FocusedConceptMiner
 from toolbox.helper_functions import get_dataset
@@ -20,11 +20,14 @@ def fcm():
 
 
 @fcm.command(context_settings=CONTEXT_SETTINGS)
+@click.argument('dataset')
 @click.argument('out-dir', type=click.Path(file_okay=False))
-@click.option('--dataset', default="", help="Name of the dataset")
-@click.option('--csv-path', type=click.Path(dir_okay=False), help="Path to the csv file")
-@click.option('--csv-text', default="", help="Column name of the text field in the csv file")
-@click.option('--csv-label', default="", help="Column name of the label field in the csv file")
+@click.option('--csv-path', type=click.Path(dir_okay=False), help="Path to the csv file. "
+                                                                  "Only needed if `dataset` is 'csv'")
+@click.option('--csv-text', default="", help="Column name of the text field in the csv file. "
+                                             "Only needed if `dataset` is 'csv'")
+@click.option('--csv-label', default="", help="Column name of the label field in the csv file. "
+                                              "Only needed if `dataset` is 'csv'")
 @click.option('--nconcepts', default=5, help="No. of concepts (default: 5)")
 @click.option('--embed-dim', default=50, help="The size of each word/concept embedding vector (default: 50)")
 @click.option('--vocab-size', default=5000, help="Maximum vocabulary size (default: 5000)")
@@ -51,7 +54,7 @@ def train(dataset, csv_path, csv_text, csv_label, nconcepts, out_dir, embed_dim,
 
     OUT-DIR is the path to the output directory where the model, results, and visualization will be saved
     """
-    if dataset == "":
+    if dataset == "csv":
         ds = CSVDataset(csv_path, csv_text, csv_label)
     else:
         dataset_class = get_dataset(dataset)

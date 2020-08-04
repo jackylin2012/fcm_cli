@@ -13,7 +13,7 @@ import gc
 import pandas
 import torch
 
-from dataset.csv_dataset import CSVDataset
+from dataset.csv import CSVDataset
 from fcm import FocusedConceptMiner
 from toolbox.helper_functions import get_dataset
 
@@ -124,19 +124,20 @@ def grid_search(config_path):
               for values in itertools.product(*dataset_params.values(), *fcm_params.values(), *fit_params.values())]
     random.shuffle(combos)
     print("Start grid search with %d combos" % len(combos))
-    grid_dir = os.path.join(GRID_ROOT, config["dataset"], out_dir)
-    os.makedirs(grid_dir, exist_ok=True)
-    with open(os.path.join(grid_dir, 'config.json'), 'w') as f:
-        json.dump(config, f, sort_keys=True)
     if os.path.isfile(os.path.join(out_dir, "results.csv")):
         results = pandas.read_csv(os.path.join(out_dir, "results.csv"))
     for combo in combos:
         queue.put(combo)
-    if "dataset" in config:
+    if config["dataset"] == 'csv':
+        ds = CSVDataset(config["csv-path"], config["csv-text"], config["csv-label"])
+        grid_dir = os.path.join(GRID_ROOT, "CSV_" + os.path.basename(config["csv-path"]), out_dir)
+    else:
         dataset_class = get_dataset(config["dataset"])
         ds = dataset_class()
-    else:
-        ds = CSVDataset(config["csv-path"], config["csv-text"], config["csv-label"])
+        grid_dir = os.path.join(GRID_ROOT, config["dataset"], out_dir)
+    os.makedirs(grid_dir, exist_ok=True)
+    with open(os.path.join(grid_dir, 'config.json'), 'w') as f:
+        json.dump(config, f, sort_keys=True)
     for i in range(max_threads):
         thread = threading.Thread(target=training_thread, args=(i % len(devices), ds, config))
         thread.setDaemon(True)

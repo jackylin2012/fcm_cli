@@ -1,0 +1,35 @@
+{
+  "dataset": "csv",
+  "csv-path": "/Users/cask/Desktop/fcm_cli/data/wcai/wcai.csv",
+  "csv-text": "docs",
+  "csv-label": "labels",
+  "gpus": [
+    0
+  ],
+  "max_threads": 1,
+  "out_dir": "debug",
+  "dataset_params": {
+    "window_size": [2],
+    "min_df": [0.1],
+    "max_df": [0.6]
+  },
+  "fcm_params": {
+    "inductive": [true],
+    "inductive_dropout": [0.01],
+    "embed_dim": [2],
+    "hidden_size": [1, 2],
+    "num_layers": [1],
+    "nnegs": [1],
+    "nconcepts": [2],
+    "lam": [10],
+    "rho": [1000],
+    "eta": [1000]
+  },
+  "fit_params": {
+    "lr": [0.01],
+    "nepochs": [1],
+    "pred_only_epochs": [0],
+    "batch_size": [10],
+    "grad_clip": [1024]
+  }
+}

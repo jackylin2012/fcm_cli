@@ -13,11 +13,12 @@ METRIC_KEYS = ['total_loss', 'avg_sgns_loss', 'avg_dirichlet_loss', 'avg_pred_lo
                'test_auc']
 
 
-def get_fields(run_id_path, metrics, params, dataset, grid_dir, run_id, epoch):
+def get_fields(grid_path, metrics, params, dataset, run_id, epoch):
     fields = OrderedDict()
-    fields['key'] = '%s:%s:%s:%d' % (dataset, grid_dir, run_id, epoch)
+    run_id_path = os.path.join(grid_path, run_id)
+    fields['key'] = '%s:%s:%s:%d' % (dataset, os.path.basename(grid_path), run_id, epoch)
     fields['dataset'] = dataset
-    fields['grid_dir'] = grid_dir
+    fields['grid_path'] = grid_path
     fields['run_id'] = run_id
     fields['epoch'] = epoch
     for key in DATASET_KEYS:
@@ -28,8 +29,8 @@ def get_fields(run_id_path, metrics, params, dataset, grid_dir, run_id, epoch):
     topics_text = open(os.path.join(concept_dir, "epoch%d.txt" % epoch)).read()
     fields['topics'] = topics_text
     topics = [t.split(':')[1].strip().split(' ') for t in topics_text.split('\n') if t]
-    _, corpus, dict = load_dataset(run_id_path, dataset)
-    fields['coherence_per_topic'], fields['coherence'] = get_coherence(topics, corpus, dict)
+    _, corpus, dic = load_dataset(grid_path, dataset, run_id)
+    fields['coherence_per_topic'], fields['coherence'] = get_coherence(topics, corpus, dic)
     fields.update(metrics.iloc[epoch][METRIC_KEYS].to_dict())
     return fields
 
@@ -38,7 +39,6 @@ def save_fixtures(grid_search_path):
     grid_search_path = os.path.abspath(grid_search_path)
     with open(os.path.join(grid_search_path, "config.json"), "r") as f:
         config = json.load(f)
-    grid_dir = grid_search_path
     dataset = config["dataset"]
     data_list = []
     for run_id in os.listdir(grid_search_path):
@@ -56,7 +56,7 @@ def save_fixtures(grid_search_path):
                 epoch = int(epoch_match.group(1))
                 data_dict = OrderedDict()
                 data_dict['model'] = 'viewer.result'
-                data_dict['fields'] = get_fields(run_dir, metrics, params, dataset, grid_dir, run_id, epoch)
+                data_dict['fields'] = get_fields(grid_search_path, metrics, params, dataset, run_id, epoch)
                 data_list.append(data_dict)
     data_file = os.path.abspath(os.path.join(grid_search_path, 'concept_viewer_fixtures.json'))
     with open(data_file, 'w') as f:
