@@ -366,7 +366,6 @@ class FocusedConceptMiner(nn.Module):
 
             self.train()
             for batch in train_dataloader:
-                batch = torch.LongTensor(batch)
                 batch = batch.to(self.device)
                 doc = batch[:, 0]
                 iword = batch[:, 1]

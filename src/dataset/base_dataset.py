@@ -5,6 +5,7 @@ import os
 import pickle
 
 import numpy as np
+import torch
 from scipy import stats
 
 from gensim.corpora.dictionary import Dictionary
@@ -279,4 +280,4 @@ def get_windows(encoded_docs, labels, window_size):
     for i, w in enumerate(windows):
         windows_array[i, :] = w
 
-    return windows_array
+    return torch.from_numpy(windows_array)
