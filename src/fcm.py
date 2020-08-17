@@ -366,6 +366,7 @@ class FocusedConceptMiner(nn.Module):
 
             self.train()
             for batch in train_dataloader:
+                batch = batch.long()
                 batch = batch.to(self.device)
                 doc = batch[:, 0]
                 iword = batch[:, 1]
