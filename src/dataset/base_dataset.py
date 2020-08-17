@@ -276,7 +276,7 @@ def get_windows(encoded_docs, labels, window_size):
                 raise ValueError("j=%d, left_context=%s, right_context=%s, w=%s" % (j, left_context, right_context, w))
             windows.append([i, target] + left_context + right_context + [label])
 
-    windows_array = np.zeros((len(windows), window_size + 3), dtype=np.int)
+    windows_array = np.zeros((len(windows), window_size + 3), dtype=np.long)
     for i, w in enumerate(windows):
         windows_array[i, :] = w
 
