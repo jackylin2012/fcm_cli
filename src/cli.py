@@ -37,7 +37,7 @@ def fcm():
 @click.option('--eta', default=10, help="Diversity loss weight (default: 10)")
 @click.option('--window-size', default=4, help="Word embedding context window size (default: 4)")
 @click.option('--lr', default=0.01, help="Learning rate (default: 0.01)")
-@click.option('--batch', default=20, help="Batch size (default: 20)")
+@click.option('--batch', default=100, help="Batch size (default: 100)")
 @click.option('--gpu', default=0, help="GPU device if CUDA is available. Ignored if no CUDA. (default: 0)")
 @click.option('--inductive', default=True, help="Whether to use inductive mode (default: True)")
 @click.option('--dropout', default=0.0, help="dropout rate applied on word/concept embedding (default: 0.0)")

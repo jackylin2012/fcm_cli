@@ -5,12 +5,19 @@ End-to-end deep learning framework for automatic mining of "focused" concepts.
 ## Prerequisites
 
    * Get the code: `git clone git@github.com:ecfm/fcm_cli.git; cd fcm_cli`
-   * Install and activate the environment:
+   * The first time you install FCM CLI, you must create a Python virtual environment and install the required packages. This may take several minutes.
 ```bash
 python3 -m venv env
 source env/bin/activate
 cd src
 pip install --editable .
+```
+
+From hereafter, each time you start a new command line instance, you must navigate to the `fcm_cli` directory as above and execute the commands:
+
+```bash 
+source env/bin/activate
+cd src
 ```
 
 ## Quickstart
@@ -64,7 +71,7 @@ Options:
                                   4)
 
   --lr FLOAT                      Learning rate (default: 0.01)
-  --batch INTEGER                 Batch size (default: 20)
+  --batch INTEGER                 Batch size (default: 100)
   --gpu INTEGER                   GPU device if CUDA is available. Ignored if
                                   no CUDA. (default: 0)
 

@@ -316,7 +316,7 @@ class FocusedConceptMiner(nn.Module):
         return negative_sampling_loss, dirichlet_loss, pred_loss, div_loss
 
     def fit(self, lr=0.01, nepochs=200, pred_only_epochs=20,
-            batch_size=10, weight_decay=0.01, grad_clip=5, save_epochs=10, concept_dist="dot"):
+            batch_size=100, weight_decay=0.01, grad_clip=5, save_epochs=10, concept_dist="dot"):
         """
         Train the FCM model
 
